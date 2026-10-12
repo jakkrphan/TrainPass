@@ -1,9 +1,9 @@
 // PM2 process file for the hospital server. Run from the repo root:
-//   npm ci && npx prisma migrate deploy && npm run build:server
+//   npm ci && npx prisma migrate deploy && npm run build
 //   pm2 start ecosystem.config.cjs && pm2 save        (first time; `pm2 startup` once to survive reboots)
 //   pm2 reload ecosystem.config.cjs                   (after each new build)
 // Secrets live in .env next to this file (never committed); both the app and the maintenance jobs read it.
-// BASE_PATH and other build-time values need `npm run build:server` again before the reload.
+// BASE_PATH and other build-time values need `npm run build` again before the reload.
 
 const PORT = 3001; // Maintenance scripts fall back to http://localhost:3100 when APP_BASE_URL is unset.
 
@@ -38,8 +38,9 @@ module.exports = {
       env: {
         NODE_ENV: "production",
         PORT,
-        // Behind the reverse proxy on this machine; use 0.0.0.0 if the proxy runs on another host.
-        HOSTNAME: "127.0.0.1",
+        // All interfaces, like `next start`: the front gateway reaches this host by its LAN IP, not loopback.
+        // Firewall port 3001 to that gateway so clients cannot bypass it.
+        HOSTNAME: "0.0.0.0",
         NEXT_TELEMETRY_DISABLED: "1",
       },
     },

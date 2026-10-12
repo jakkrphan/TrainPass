@@ -181,7 +181,7 @@ export default async function RegistrantsPage({ params, searchParams }: PageProp
 
   return <>
     <OrganizerEventHeader event={event} activeTab="registrants" actions={flags.exportData ? <>
-      <form method="get" action={`/organizer/${eventId}/registrants/export`} className="flex flex-wrap items-center gap-2">
+      <form method="get" action={withBasePath(`/organizer/${eventId}/registrants/export`)} className="flex flex-wrap items-center gap-2">
         <label className="flex min-h-8 items-center gap-1.5 text-xs text-muted-foreground"><input type="checkbox" name="includeSensitive" className="size-4 accent-primary" />รวมข้อมูลอ่อนไหว</label>
         <Button type="submit" variant="outline"><DownloadIcon data-icon="inline-start" aria-hidden="true" />Export CSV</Button>
         <Button type="submit" name="format" value="xlsx" variant="outline">Excel</Button>
@@ -361,7 +361,7 @@ export default async function RegistrantsPage({ params, searchParams }: PageProp
               {/* Answers to fields removed from the form stay stored (never silently deleted) but are not shown. */}
               {orphanKeys.length > 0 && <><dt className="border-b py-3 text-sm text-muted-foreground">คำตอบจากฟิลด์ที่ลบแล้ว</dt><dd className="flex flex-col gap-1.5 border-b py-3 text-sm text-muted-foreground">
                 <span>{`${orphanKeys.length} รายการ · ข้อความไม่แสดง เพราะฟิลด์ถูกลบออกจากฟอร์มแล้ว`}{orphanFiles.length > 0 ? " · ไฟล์แนบยังดาวน์โหลดได้จนกว่าจะครบระยะเก็บข้อมูล" : ""}</span>
-                {orphanFiles.map(({ key, index, name }) => <a key={`${key}-${index}`} href={`/organizer/${eventId}/registrants/${person.id}/files/${encodeURIComponent(key)}?i=${index}`} className="inline-flex min-h-8 items-center gap-1.5 text-foreground underline-offset-4 hover:underline [overflow-wrap:anywhere]"><FileIcon className="size-4 shrink-0" aria-hidden="true" />{name}</a>)}
+                {orphanFiles.map(({ key, index, name }) => <a key={`${key}-${index}`} href={withBasePath(`/organizer/${eventId}/registrants/${person.id}/files/${encodeURIComponent(key)}?i=${index}`)} className="inline-flex min-h-8 items-center gap-1.5 text-foreground underline-offset-4 hover:underline [overflow-wrap:anywhere]"><FileIcon className="size-4 shrink-0" aria-hidden="true" />{name}</a>)}
               </dd></>}
               <dt className="py-3 text-sm text-muted-foreground">เช็คชื่อแล้ว</dt>
               <dd className="py-3">{person.checkIns.length ? <ul className="flex flex-col gap-1 text-sm">{person.checkIns.map((checkIn) => <li key={checkIn.id}>{checkIn.session.label}{checkIn.session.eventDay ? ` · ${formatEventDay(checkIn.session.eventDay.date)}` : ""} <span className="text-muted-foreground">({formatDateTime(checkIn.checkedInAt)}){checkIn.isOverride ? " · กรณีพิเศษ" : ""}</span></li>)}</ul> : <span className="text-muted-foreground">ยังไม่มี</span>}</dd>
