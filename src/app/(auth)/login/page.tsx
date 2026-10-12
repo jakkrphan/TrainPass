@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
 import Image from "next/image";
-import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowLeftIcon, LockIcon } from "lucide-react";
+import { LockIcon } from "lucide-react";
 
 import { auth } from "@/auth";
 import { ldapEnabled } from "@/server/auth/ldap";
@@ -49,8 +48,7 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
 
         <div className="mt-6"><LoginForm next={next} ldap={ldap} /></div>
 
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-sm text-muted-foreground">
-          <Link href="/" className="-mx-2 inline-flex min-h-11 items-center gap-1 rounded-md px-2 hover:bg-secondary hover:text-primary"><ArrowLeftIcon className="size-4" aria-hidden="true" />กลับหน้าหลัก</Link>
+        <div className="mt-4 flex flex-wrap items-center justify-end gap-x-4 gap-y-1 text-sm text-muted-foreground">
           {ldap
             ? <a href={FORGOT_PASSWORD_URL} target="_blank" rel="noopener noreferrer" className="-mx-2 inline-flex min-h-11 items-center rounded-md px-2 font-medium text-primary underline-offset-4 hover:underline">ลืมรหัสผ่าน?</a>
             : <span className="text-xs">ลืมรหัสผ่าน? ขอลิงก์ตั้งรหัสผ่านจากผู้ดูแลระบบ</span>}
