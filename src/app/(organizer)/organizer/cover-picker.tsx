@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } fr
 import { ImageIcon, MoveIcon, Trash2Icon, UploadIcon, ZoomInIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { withBasePath } from "@/lib/base-path";
 
 const OUTPUT = { width: 1600, height: 900 };
 const MAX_ZOOM = 3;
@@ -121,7 +122,7 @@ export function CoverPicker({ currentUrl }: { currentUrl?: string | null }) {
     update({ ...crop, ...moves[event.key] });
   }
 
-  const existing = !source && !removed ? currentUrl ?? null : null;
+  const existing = !source && !removed ? (currentUrl ? withBasePath(currentUrl) : null) : null;
   // The frame is always 16:9, so the export geometry converts straight to percentages for the preview.
   const box = source ? placement(source.image, OUTPUT, crop) : null;
 

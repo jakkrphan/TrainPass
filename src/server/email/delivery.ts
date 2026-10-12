@@ -3,6 +3,7 @@ import QRCode from "qrcode";
 
 import { sendEmail } from "@/server/email/client";
 import { buildAnnouncementEmail, buildEmailMessage, emailRecipientSelect, emailSnapshot } from "@/server/email/message";
+import { withBasePath } from "@/lib/base-path";
 
 const MAX_ATTEMPTS = 4;
 const BACKOFF_MS = [60_000, 5 * 60_000, 30 * 60_000];
@@ -40,7 +41,7 @@ async function deliver(db: PrismaClient, id: string, options: DeliveryOptions): 
   if (!explicit && snapshot === person.emailNotifiedHash) { await finish("SKIPPED", "NO_CHANGE"); return "skipped"; }
   const origin = options.origin;
   if (!origin) { await finish("FAILED", "APP_BASE_URL_INVALID"); return "failed"; }
-  const url = `${origin}/events/${person.event.slug}/status/${options.statusToken(person)}`;
+  const url = `${origin}${withBasePath(`/events/${person.event.slug}/status/${options.statusToken(person)}`)}`;
   const message = announcement ? buildAnnouncementEmail(person, announcement, url) : buildEmailMessage(person, url);
   const qr = message.attachQr ? await QRCode.toBuffer(person.qrCode!, { type: "png", width: 512, margin: 2 }) : undefined;
   const result = await (options.send ?? sendEmail)({ to: person.email, ...message, qr, retryKey: notification.retryKey });

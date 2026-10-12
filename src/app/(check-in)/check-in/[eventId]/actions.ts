@@ -14,6 +14,7 @@ import { normalizeQrCode } from "@/server/registrations/qr-code";
 import { mergeAnswers } from "@/server/registrations/self-edit";
 import { cleanStation, currentStation, STATION_COOKIE } from "@/server/checkin/station";
 import { isFeatureEnabled } from "@/server/settings/features";
+import { withBasePath } from "@/lib/base-path";
 
 export type ScanPerson = {
   id: string;
@@ -73,8 +74,8 @@ export async function setCheckInStation(eventId: string, sessionId: string, form
   await requireEventAccess(eventId, "checkIn");
   const name = cleanStation(formData.get("station"));
   const store = await cookies();
-  if (name) store.set(STATION_COOKIE, name, { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/check-in", maxAge: 60 * 60 * 24 * 365 });
-  else store.delete({ name: STATION_COOKIE, path: "/check-in" });
+  if (name) store.set(STATION_COOKIE, name, { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: withBasePath("/check-in"), maxAge: 60 * 60 * 24 * 365 });
+  else store.delete({ name: STATION_COOKIE, path: withBasePath("/check-in") });
   redirect(`/check-in/${eventId}?session=${sessionId}`);
 }
 export type CheckInMethod = (typeof checkInMethods)[number];

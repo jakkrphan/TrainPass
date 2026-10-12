@@ -3,6 +3,7 @@ import { LogOutIcon } from "lucide-react";
 
 import { signOut } from "@/auth";
 import { Button } from "@/components/ui/button";
+import { withBasePath } from "@/lib/base-path";
 
 import { OrganizerSidebar } from "./sidebar";
 
@@ -12,7 +13,7 @@ const roleLabel = { ADMIN: "ผู้ดูแลระบบ", ORGANIZER: "ผ�
 export function AppShell({ user, children }: { user: { name: string; role: keyof typeof roleLabel }; children: ReactNode }) {
   async function logout() {
     "use server";
-    await signOut({ redirectTo: "/login" });
+    await signOut({ redirectTo: withBasePath("/login") });
   }
 
   return (

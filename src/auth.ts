@@ -7,6 +7,7 @@ import { resolveLdapUser } from "@/server/auth/ldap-account";
 import { authenticateLdap, ldapConfig } from "@/server/auth/ldap";
 import { clearAccountFailures, isLoginThrottled, loginKeys, pruneLoginAttempts, recordLoginFailure } from "@/server/auth/login-throttle";
 import { db } from "@/server/db";
+import { withBasePath } from "@/lib/base-path";
 
 class LoginRateLimited extends CredentialsSignin {
   code = "rate_limited";
@@ -32,7 +33,9 @@ const emailSchema = z.email();
 const SESSION_MAX_AGE_SECONDS = 12 * 60 * 60;
 
 export const { auth, handlers, signIn, signOut } = NextAuth({
-  pages: { signIn: "/login" },
+  // Next's basePath is not applied to Auth.js routes or its error redirects; see src/lib/base-path.ts.
+  basePath: withBasePath("/api/auth"),
+  pages: { signIn: withBasePath("/login") },
   session: { strategy: "jwt", maxAge: SESSION_MAX_AGE_SECONDS },
   providers: [
     Credentials({

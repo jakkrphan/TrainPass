@@ -12,6 +12,7 @@ import { db } from "@/server/db";
 import { getSeatAvailability } from "@/server/registrations/day-status";
 import { isFeatureEnabled } from "@/server/settings/features";
 import { fileStorageReady } from "@/server/registrations/upload-storage";
+import { withBasePath } from "@/lib/base-path";
 
 import { OrganizerEventHeader } from "../../event-header";
 import { WALK_IN_LINK_COOKIE } from "./walk-in-link";
@@ -45,7 +46,7 @@ export default async function NewRegistrantPage({ params, searchParams }: PagePr
   // The person just saved: shown above a fresh form so the next walk-in can be entered straight away.
   const added = typeof addedParam === "string" ? await db.registrant.findFirst({ where: { id: addedParam, eventId }, select: { id: true, displayName: true, email: true, status: true } }) : null;
   const flash = (await cookies()).get(WALK_IN_LINK_COOKIE)?.value.split(":");
-  const statusHref = added && flash?.[0] === added.id && flash[1] ? `/events/${event.slug}/status/${flash[1]}` : null;
+  const statusHref = added && flash?.[0] === added.id && flash[1] ? withBasePath(`/events/${event.slug}/status/${flash[1]}`) : null;
 
   return <>
     <OrganizerEventHeader event={event} activeTab="registrants" />
@@ -74,7 +75,7 @@ const addedStatus: Record<string, string> = {
 function AddedCard({ eventId, person, statusHref, backHref }: { eventId: string; person: { id: string; displayName: string | null; email: string | null; status: string }; statusHref: string | null; backHref: string }) {
   const name = person.displayName ?? person.email ?? "ผู้ลงทะเบียน";
   const approved = person.status === "APPROVED";
-  const qrHref = `/organizer/${eventId}/registrants/${person.id}/qr`;
+  const qrHref = withBasePath(`/organizer/${eventId}/registrants/${person.id}/qr`);
   return <section role="status" aria-labelledby="walk-in-added" className="mb-6 flex flex-col gap-4 rounded-2xl border border-emerald-300 bg-card p-5 shadow-sm sm:flex-row sm:items-start">
     {/* Plain img: the QR is private and generated per request; the next/image optimizer would fetch it without the session. */}
     {/* eslint-disable-next-line @next/next/no-img-element */}

@@ -22,6 +22,7 @@ import { cn } from "@/lib/utils";
 import { requireActiveUser } from "@/server/authorization/session";
 import { db } from "@/server/db";
 import { isFeatureEnabled, mayCreateEvents } from "@/server/settings/features";
+import { withBasePath } from "@/lib/base-path";
 
 export const metadata: Metadata = {
   title: "โครงการของฉัน",
@@ -194,10 +195,10 @@ export default async function OrganizerPage({ searchParams }: PageProps<"/organi
                 const pending = countOf(event.id, "PENDING");
                 const waitlisted = countOf(event.id, "WAITLISTED");
                 const openHref = event.status === "DRAFT" ? `/organizer/${event.id}?step=${setup?.step ?? 1}` : `/organizer/${event.id}/dashboard`;
-                const publicUrl = `${origin}/r/${event.slug}`;
+                const publicUrl = `${origin}${withBasePath(`/r/${event.slug}`)}`;
                 const menuId = `event-menu-${event.id}`;
                 return <TableRow key={event.id} className={cn("max-xl:grid max-xl:grid-cols-[80px_minmax(0,1fr)_auto] max-xl:items-start max-xl:gap-x-3 max-xl:gap-y-3 max-xl:px-4 max-xl:py-4 [&>td]:max-xl:p-0 [&>td]:max-xl:whitespace-normal", event.status === "CLOSED" && "opacity-75")}>
-                  <TableCell className="px-6 py-4 max-xl:col-start-1 max-xl:row-start-1"><div className="relative flex h-14 w-24 max-xl:h-12 max-xl:w-20 items-center justify-center overflow-hidden rounded-lg bg-[#d9d8ce] text-[#4a463f]">{event.coverImageUrl ? <Image src={coverThumbUrl(event.coverImageUrl)} alt="" fill unoptimized sizes="96px" className="object-cover" /> : <div className="flex flex-col items-center gap-1"><ImageIcon className="size-5" aria-hidden="true" /><span className="text-[10px] font-semibold">รูปปก</span></div>}</div></TableCell>
+                  <TableCell className="px-6 py-4 max-xl:col-start-1 max-xl:row-start-1"><div className="relative flex h-14 w-24 max-xl:h-12 max-xl:w-20 items-center justify-center overflow-hidden rounded-lg bg-[#d9d8ce] text-[#4a463f]">{event.coverImageUrl ? <Image src={withBasePath(coverThumbUrl(event.coverImageUrl))} alt="" fill unoptimized sizes="96px" className="object-cover" /> : <div className="flex flex-col items-center gap-1"><ImageIcon className="size-5" aria-hidden="true" /><span className="text-[10px] font-semibold">รูปปก</span></div>}</div></TableCell>
                   <TableCell className="py-4 max-xl:col-start-2 max-xl:row-start-1">
                     <div className="flex flex-col gap-2">
                       <Link href={openHref} className="py-0.5 font-heading text-base font-semibold leading-snug whitespace-normal hover:underline">{event.title}</Link>
@@ -235,7 +236,7 @@ export default async function OrganizerPage({ searchParams }: PageProps<"/organi
                       </div>
                       <div className="flex flex-col gap-2 border-t px-3 py-2.5">
                         <span className="flex items-center gap-2 text-sm"><LinkIcon className="size-4 text-muted-foreground" aria-hidden="true" />ลิงก์ลงทะเบียน</span>
-                        {event.status === "PUBLISHED" ? <div className="flex flex-wrap items-center gap-2"><CopyButton value={publicUrl} label="คัดลอกลิงก์" /><Button asChild variant="ghost" size="sm"><a href={`/events/${event.slug}`} target="_blank" rel="noreferrer"><ExternalLinkIcon data-icon="inline-start" aria-hidden="true" />เปิดหน้า</a></Button></div>
+                        {event.status === "PUBLISHED" ? <div className="flex flex-wrap items-center gap-2"><CopyButton value={publicUrl} label="คัดลอกลิงก์" /><Button asChild variant="ghost" size="sm"><a href={withBasePath(`/events/${event.slug}`)} target="_blank" rel="noreferrer"><ExternalLinkIcon data-icon="inline-start" aria-hidden="true" />เปิดหน้า</a></Button></div>
                           : <Link href={`/organizer/${event.id}?step=5`} className="text-sm font-semibold text-primary underline-offset-4 hover:underline">{event.status === "DRAFT" ? "ตรวจความพร้อมและเผยแพร่ →" : "เปิดรับลงทะเบียนอีกครั้ง →"}</Link>}
                       </div>
                       <div className="border-t px-1 pt-1">

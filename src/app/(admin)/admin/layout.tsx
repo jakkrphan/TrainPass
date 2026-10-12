@@ -6,20 +6,21 @@ import { signOut } from "@/auth";
 import { Button } from "@/components/ui/button";
 import { requireAdminUser } from "@/server/authorization/session";
 import { OrganizerNavigation } from "@/app/(organizer)/organizer/navigation";
+import { withBasePath } from "@/lib/base-path";
 
 export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
   const admin = await requireAdminUser();
 
   async function logout() {
     "use server";
-    await signOut({ redirectTo: "/login" });
+    await signOut({ redirectTo: withBasePath("/login") });
   }
 
   return (
     <div className="flex min-h-svh flex-col lg:flex-row">
       <aside className="flex shrink-0 items-center justify-between gap-2 bg-sidebar px-3 py-2 sm:gap-3 sm:px-4 text-sidebar-foreground lg:min-h-svh lg:w-[236px] lg:flex-col lg:items-stretch lg:justify-start lg:px-3 lg:py-4">
         <Link href="/admin" aria-label="TrainPass · ผู้ดูแลระบบ" className="flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-lg px-2 text-sidebar-foreground hover:bg-sidebar-accent lg:justify-start">
-          <Image src="/images/logo.png" alt="" width={32} height={32} className="size-8 shrink-0 rounded-full bg-background object-contain" />
+          <Image src={withBasePath("/images/logo.png")} alt="" width={32} height={32} className="size-8 shrink-0 rounded-full bg-background object-contain" />
           <span className="font-heading text-base font-bold max-[359px]:hidden lg:inline">TrainPass</span>
         </Link>
         <OrganizerNavigation isAdmin />

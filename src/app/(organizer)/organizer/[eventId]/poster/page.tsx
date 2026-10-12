@@ -8,6 +8,7 @@ import { formatDeadlineDay, formatEventDayList } from "@/lib/format";
 import { requireEventAccess } from "@/server/authorization/event";
 import { db } from "@/server/db";
 import { registrationQrSvg, shortEventUrl } from "@/server/events/public-url";
+import { withBasePath } from "@/lib/base-path";
 
 export const metadata: Metadata = { title: "พิมพ์ QR ลงทะเบียน" };
 
@@ -24,7 +25,7 @@ export default async function RegistrationPosterPage({ params }: PageProps<"/org
     <div className="flex w-full max-w-[210mm] flex-wrap items-center justify-between gap-3 print:hidden">
       <Button asChild variant="outline"><Link href={`/organizer/${eventId}?step=5`}><ArrowLeftIcon data-icon="inline-start" aria-hidden="true" />กลับไปหน้าเผยแพร่</Link></Button>
       <div className="flex flex-wrap gap-2">
-        <Button asChild variant="outline" size="lg"><a href={`/organizer/${eventId}/qr`} download><DownloadIcon data-icon="inline-start" aria-hidden="true" />ดาวน์โหลด PNG</a></Button>
+        <Button asChild variant="outline" size="lg"><a href={withBasePath(`/organizer/${eventId}/qr`)} download><DownloadIcon data-icon="inline-start" aria-hidden="true" />ดาวน์โหลด PNG</a></Button>
         <PrintButton label="พิมพ์โปสเตอร์" />
       </div>
     </div>

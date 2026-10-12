@@ -6,6 +6,7 @@ import { lineAvailable, lineLinkFromState, linkLineAccount } from "@/server/line
 import { decodeLineLinkState, LINE_LINK_COOKIE } from "@/server/line/link-state";
 import { db } from "@/server/db";
 import { lineStatusToken } from "@/server/registrations/status-token";
+import { withBasePath } from "@/lib/base-path";
 
 export const dynamic = "force-dynamic";
 
@@ -19,7 +20,7 @@ export async function GET(request: Request) {
   // No cookie when LINE opened the callback in its in-app browser: fall back to the signed `state`.
   const cookieLink = decodeLineLinkState(store.get(LINE_LINK_COOKIE)?.value);
   const link = cookieLink ?? await lineLinkFromState(url.searchParams.get("state"));
-  store.delete({ name: LINE_LINK_COOKIE, path: "/api/line" });
+  store.delete({ name: LINE_LINK_COOKIE, path: withBasePath("/api/line") });
   if (!link) return notice(400, "ลิงก์เชื่อม LINE หมดอายุ", "กรุณากลับไปที่หน้าสถานะการลงทะเบียน แล้วกดเชื่อม LINE อีกครั้ง");
   // Back to the host the flow started on (APP_BASE_URL or the request's Host). Not `url.origin`: Next builds request.url from its own
   // hostname (localhost:3000) with the forwarded proto, so behind an https tunnel it would send the person to https://localhost:3000.
@@ -27,7 +28,7 @@ export async function GET(request: Request) {
   // Without the cookie, link.returnPath is a full status link rebuilt from `state` alone — and `state` is not secret (LINE sees
   // it, access logs keep it). So that link is handed out only after a verified LINE login (`proven`); before that, a plain page.
   const back = (result: string, proven = false) => cookieLink || proven
-    ? NextResponse.redirect(`${origin}${link.returnPath}?line=${result}#line`, 303)
+    ? NextResponse.redirect(`${origin}${withBasePath(link.returnPath)}?line=${result}#line`, 303)
     : notice(200, "เชื่อม LINE ไม่สำเร็จ", `${failureText[result] ?? failureText.error} กรุณาเปิดหน้าสถานะการลงทะเบียนจากลิงก์เดิมของคุณ แล้วกดเชื่อม LINE อีกครั้ง`);
   if (url.searchParams.get("state") !== link.state) return back("error");
   // The person pressed cancel / did not allow on LINE's consent screen.
@@ -50,7 +51,7 @@ export async function GET(request: Request) {
   if (linked.result === "linked") return back("linked", true);
   // Proven owner of that LINE account: open the registration it already has (LINE-signed status link), not the cancelled copy.
   const slug = link.returnPath.split("/")[2];
-  if (linked.original) return NextResponse.redirect(`${origin}/events/${slug}/status/${lineStatusToken(linked.original)}?line=duplicate#line`, 303);
+  if (linked.original) return NextResponse.redirect(`${origin}${withBasePath(`/events/${slug}/status/${lineStatusToken(linked.original)}`)}?line=duplicate#line`, 303);
   return back("duplicate", true);
 }
 

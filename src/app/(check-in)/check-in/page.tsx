@@ -15,6 +15,7 @@ import { pageWindow, readPage } from "@/lib/pagination";
 import { cn } from "@/lib/utils";
 import { requireActiveUser } from "@/server/authorization/session";
 import { db } from "@/server/db";
+import { withBasePath } from "@/lib/base-path";
 
 export const metadata: Metadata = { title: "เช็คชื่อหน้างาน" };
 
@@ -145,7 +146,7 @@ export default async function CheckInPage({ searchParams }: PageProps<"/check-in
                 const percent = stats && stats.expected ? Math.min(100, Math.round((stats.checked / stats.expected) * 100)) : 0;
                 const href = `/check-in/${event.id}`;
                 return <TableRow key={event.id} className={cn("max-xl:grid max-xl:grid-cols-[80px_minmax(0,1fr)] max-xl:items-start max-xl:gap-x-3 max-xl:gap-y-3 max-xl:px-4 max-xl:py-4 [&>td]:max-xl:p-0 [&>td]:max-xl:whitespace-normal", phase === "past" && "opacity-75")}>
-                  <TableCell className="px-6 py-4 max-xl:col-start-1 max-xl:row-start-1"><div className="relative flex h-14 w-24 max-xl:h-12 max-xl:w-20 items-center justify-center overflow-hidden rounded-lg bg-[#d9d8ce] text-[#4a463f]">{event.coverImageUrl ? <Image src={coverThumbUrl(event.coverImageUrl)} alt="" fill unoptimized sizes="96px" className="object-cover" /> : <div className="flex flex-col items-center gap-1"><ImageIcon className="size-5" aria-hidden="true" /><span className="text-[10px] font-semibold">รูปปก</span></div>}</div></TableCell>
+                  <TableCell className="px-6 py-4 max-xl:col-start-1 max-xl:row-start-1"><div className="relative flex h-14 w-24 max-xl:h-12 max-xl:w-20 items-center justify-center overflow-hidden rounded-lg bg-[#d9d8ce] text-[#4a463f]">{event.coverImageUrl ? <Image src={withBasePath(coverThumbUrl(event.coverImageUrl))} alt="" fill unoptimized sizes="96px" className="object-cover" /> : <div className="flex flex-col items-center gap-1"><ImageIcon className="size-5" aria-hidden="true" /><span className="text-[10px] font-semibold">รูปปก</span></div>}</div></TableCell>
                   <TableCell className="py-4 max-xl:col-start-2 max-xl:row-start-1">
                     <div className="flex flex-col gap-2">
                       <Link href={href} className="py-0.5 font-heading text-base font-semibold leading-snug whitespace-normal hover:underline">{event.title}</Link>

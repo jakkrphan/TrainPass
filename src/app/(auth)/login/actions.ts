@@ -4,6 +4,7 @@ import { AuthError, CredentialsSignin } from "next-auth";
 
 import { signIn } from "@/auth";
 import { safeReturnTo } from "@/server/auth/return-to";
+import { withBasePath } from "@/lib/base-path";
 
 export type LoginState = { error?: "invalid" | "rate-limited" | "ldap-unavailable" | "ldap-not-allowed"; email?: string };
 
@@ -20,7 +21,7 @@ export async function login(_previous: LoginState, formData: FormData): Promise<
       email,
       password: formData.get("password"),
       // Staff without organizer access are forwarded to check-in by the organizer page itself.
-      redirectTo: safeReturnTo(formData.get("next")) ?? "/organizer",
+      redirectTo: withBasePath(safeReturnTo(formData.get("next")) ?? "/organizer"),
     });
     return {};
   } catch (cause) {

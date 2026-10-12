@@ -2,7 +2,13 @@ import type { NextConfig } from "next";
 
 const devAllowedOrigins = process.env.DEV_ALLOWED_ORIGINS?.split(",").map((host) => host.trim()).filter(Boolean);
 
+// Sub-path the app is served under, e.g. "/trainpass" (unset = domain root). Build-time only: changing it needs a rebuild.
+const basePath = (process.env.BASE_PATH ?? "").trim().replace(/\/+$/, "").replace(/^(?=[^/])/, "/");
+
 const nextConfig: NextConfig = {
+  basePath,
+  // Inlines the normalized value for src/lib/base-path.ts (client and server bundles alike).
+  env: { BASE_PATH: basePath },
   // Produce a minimal Node.js server image for Coolify and other Docker hosts.
   output: "standalone",
   // Loaded by Node at runtime instead of bundled, as in portalrpp (it opens raw TCP/TLS sockets).

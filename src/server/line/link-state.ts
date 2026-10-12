@@ -65,7 +65,7 @@ export function decodeLineLinkState(cookie: string | undefined): LineLinkState |
   try {
     const value = JSON.parse(Buffer.from(payload, "base64url").toString()) as LineLinkState;
     // Only ever send people back to a status page on this site.
-    if (value.expiresAt < Date.now() || !/^\/events\/[^/?#]+\/status\/[^/?#]+$/.test(value.returnPath) || !/^https?:\/\/[^/]+\/api\/line\/callback$/.test(value.redirectUri)) return null;
+    if (value.expiresAt < Date.now() || !/^\/events\/[^/?#]+\/status\/[^/?#]+$/.test(value.returnPath) || !/^https?:\/\/[^/]+(?:\/[^?#]*)?\/api\/line\/callback$/.test(value.redirectUri)) return null;
     return value;
   } catch {
     return null;

@@ -18,6 +18,7 @@ import { lineConfigured } from "@/server/line/client";
 import { getSeatAvailability } from "@/server/registrations/day-status";
 import { getWaitlistOpenings } from "@/server/registrations/waitlist-openings";
 import { getFeatureFlags } from "@/server/settings/features";
+import { withBasePath } from "@/lib/base-path";
 
 import { OrganizerEventHeader } from "../event-header";
 import { WaitlistOpenings } from "../waitlist-openings";
@@ -383,7 +384,7 @@ export default async function RegistrantsPage({ params, searchParams }: PageProp
                   <Button type="submit" size="sm" variant="outline">ออกลิงก์สถานะใหม่</Button>
                 </form>
               </details>
-              {person.status === "APPROVED" && <Button asChild variant="outline"><a href={`/organizer/${eventId}/registrants/${person.id}/qr`}><QrCodeIcon data-icon="inline-start" aria-hidden="true" />ดาวน์โหลด QR</a></Button>}
+              {person.status === "APPROVED" && <Button asChild variant="outline"><a href={withBasePath(`/organizer/${eventId}/registrants/${person.id}/qr`)}><QrCodeIcon data-icon="inline-start" aria-hidden="true" />ดาวน์โหลด QR</a></Button>}
               {person.status === "APPROVED" && <form action={decideRegistrant.bind(null, eventId, person.id, "cancel")}><input type="hidden" name="returnTo" value={returnTo} /><Button variant="outline" className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive">ยกเลิกการเข้าร่วม</Button></form>}
               {(person.status === "PENDING" || person.status === "WAITLISTED") && <details className="relative">
                 <summary className="flex h-9 cursor-pointer list-none items-center rounded-md border border-destructive/40 px-3 text-sm font-medium text-destructive hover:bg-destructive/10 [&::-webkit-details-marker]:hidden">ปฏิเสธ…</summary>

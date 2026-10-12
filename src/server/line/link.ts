@@ -9,6 +9,7 @@ import { cancelDuplicateRegistration } from "@/server/registrations/lifecycle";
 import { queueLineNotification } from "@/server/line/notifications";
 import { lineStatusToken, statusTokenWhere } from "@/server/registrations/status-token";
 import { isFeatureEnabled } from "@/server/settings/features";
+import { withBasePath } from "@/lib/base-path";
 
 /** LINE is offered only when the admin switch is on and both channels have their keys. */
 export async function lineAvailable() {
@@ -92,7 +93,7 @@ export async function unlinkLineAccount(registrant: { id: string; eventId: strin
 export async function lineLoginUrl(registrantId: string, returnPath: string) {
   const redirectUri = await requestCallbackUrl();
   const state = newLineLinkState(registrantId, returnPath, redirectUri);
-  (await cookies()).set(LINE_LINK_COOKIE, encodeLineLinkState(state), { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/api/line", maxAge: LINE_LINK_MAX_AGE });
+  (await cookies()).set(LINE_LINK_COOKIE, encodeLineLinkState(state), { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: withBasePath("/api/line"), maxAge: LINE_LINK_MAX_AGE });
   return lineAuthorizeUrl({ redirectUri, state: state.state, nonce: state.nonce });
 }
 

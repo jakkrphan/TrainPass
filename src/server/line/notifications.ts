@@ -9,6 +9,7 @@ import { lineConfigured, pushLineMessage } from "@/server/line/client";
 import { buildLineAnnouncement, buildLineFlexMessage, type LineNotificationKind, recipientSelect, snapshotOf } from "@/server/line/message";
 import { lineStatusToken } from "@/server/registrations/status-token";
 import { isFeatureEnabled } from "@/server/settings/features";
+import { withBasePath } from "@/lib/base-path";
 
 // LINE notifications for registrants (spec 1.7 / 2.1), sent through the NotificationLog outbox:
 //   linked  — right after the person connects LINE: a summary of every day and the status link
@@ -87,7 +88,7 @@ async function deliver(notificationId: string, enabled: boolean, origin: string)
   // LINE was the chosen channel: with LINE off the news would reach nobody, so email takes over.
   if (!enabled) { await handOverToEmail(notificationId, "SKIPPED", "LINE ปิดอยู่หรือยังไม่ตั้งคีย์"); return "skipped"; }
   if (!person.lineUserId || person.anonymizedAt || person.event.deletedAt) { await finish("SKIPPED", "ไม่ได้เชื่อม LINE แล้ว"); return "skipped"; }
-  const statusUrl = `${origin}/events/${person.event.slug}/status/${lineStatusToken(person)}`;
+  const statusUrl = `${origin}${withBasePath(`/events/${person.event.slug}/status/${lineStatusToken(person)}`)}`;
   if (isAnnouncement && !notification.announcement) { await finish("SKIPPED", "ไม่พบประกาศ"); return "skipped"; }
   const message = notification.announcement && isAnnouncement
     ? buildLineAnnouncement(person, notification.announcement, statusUrl)

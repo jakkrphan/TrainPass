@@ -11,6 +11,7 @@ import { CopyButton } from "@/components/copy-button";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { registrationQrSvg, shortEventUrl } from "@/server/events/public-url";
+import { withBasePath } from "@/lib/base-path";
 
 export type PublishCheck = { label: string; detail?: string; ready: boolean; step?: number };
 type Member = { id: string; userId: string; role: "FULL" | "CHECKIN_ONLY"; user: { name: string; email: string } };
@@ -88,7 +89,7 @@ export async function PublishStep({ event, owner, members, checks, canAdminister
             <span className="text-xs text-muted-foreground">พิมพ์เป็นโปสเตอร์ A4 ติดหน้างาน หรือดาวน์โหลดไปใส่สไลด์/โพสต์</span>
             <div className="flex flex-wrap gap-2">
               <Button asChild size="sm"><Link href={`/organizer/${event.id}/poster`}><PrinterIcon data-icon="inline-start" aria-hidden="true" />พิมพ์ QR</Link></Button>
-              <Button asChild variant="outline" size="sm"><a href={`/organizer/${event.id}/qr`} download><DownloadIcon data-icon="inline-start" aria-hidden="true" />PNG</a></Button>
+              <Button asChild variant="outline" size="sm"><a href={withBasePath(`/organizer/${event.id}/qr`)} download><DownloadIcon data-icon="inline-start" aria-hidden="true" />PNG</a></Button>
             </div>
           </div>
         </div>
@@ -96,7 +97,7 @@ export async function PublishStep({ event, owner, members, checks, canAdminister
         {saved === "status" && <p role="status" className="rounded-lg border border-primary/30 bg-accent px-3 py-2 text-sm text-accent-foreground">เปลี่ยนสถานะโครงการแล้ว</p>}
         {!canAdminister ? <p className="text-sm text-muted-foreground">เฉพาะเจ้าของโครงการกดเผยแพร่/ปิดรับได้</p>
           : event.status === "PUBLISHED" ? <div className="flex flex-col gap-2">
-            <Button asChild size="lg" className="h-12"><a href={`/events/${event.slug}`} target="_blank" rel="noreferrer">เปิดหน้าลงทะเบียน</a></Button>
+            <Button asChild size="lg" className="h-12"><a href={withBasePath(`/events/${event.slug}`)} target="_blank" rel="noreferrer">เปิดหน้าลงทะเบียน</a></Button>
             <form action={changeEventStatus.bind(null, event.id, "CLOSED")}><Button type="submit" variant="outline" className="w-full">ปิดรับลงทะเบียน</Button></form>
           </div>
           : <form action={changeEventStatus.bind(null, event.id, "PUBLISHED")} className="flex flex-col gap-2">

@@ -2,6 +2,8 @@
 // Two channels under one provider — otherwise the user ID from Login cannot receive pushes from the OA.
 // Env names are documented in .env.example; values are never logged.
 
+import { withBasePath } from "@/lib/base-path";
+
 const LOGIN_ENV = ["LINE_LOGIN_CHANNEL_ID", "LINE_LOGIN_CHANNEL_SECRET"] as const;
 const MESSAGING_ENV = ["LINE_MESSAGING_ACCESS_TOKEN"] as const;
 const env = (name: string) => process.env[name]?.trim() ?? "";
@@ -13,7 +15,7 @@ export function lineConfigured() {
 
 /** Where LINE sends people back after login; must be registered in the LINE Login channel. */
 export function lineCallbackUrl(origin: string) {
-  return `${(process.env.APP_BASE_URL ?? origin).replace(/\/$/, "")}/api/line/callback`;
+  return `${(process.env.APP_BASE_URL ?? origin).replace(/\/$/, "")}${withBasePath("/api/line/callback")}`;
 }
 
 export function lineAuthorizeUrl(options: { redirectUri: string; state: string; nonce: string }) {

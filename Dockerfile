@@ -21,6 +21,10 @@ CMD ["./node_modules/.bin/prisma", "migrate", "deploy"]
 FROM deps AS builder
 COPY . .
 
+# Sub-path such as /trainpass; inlined by next build, so set it as a build argument (empty = domain root).
+ARG BASE_PATH=""
+ENV BASE_PATH=$BASE_PATH
+
 # Build-only placeholders let Prisma generate its client without putting production secrets in image layers.
 ENV NODE_ENV=production \
     DATABASE_URL=mysql://build:build@127.0.0.1:3306/checkinhub \

@@ -7,6 +7,7 @@ import { auth } from "@/auth";
 import { ldapEnabled } from "@/server/auth/ldap";
 import { safeReturnTo } from "@/server/auth/return-to";
 import { db } from "@/server/db";
+import { withBasePath } from "@/lib/base-path";
 
 import { LoginForm } from "./login-form";
 
@@ -30,7 +31,7 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
     <main className="flex min-h-svh w-full items-center justify-center bg-linear-to-br from-background via-secondary to-accent px-4 py-10">
       <div className="flex w-full max-w-md flex-col rounded-3xl bg-card/95 p-6 shadow-2xl sm:p-8">
         <div className="flex flex-col items-center text-center">
-          <Image src="/images/logo.png" alt="โรงพยาบาลราชพิพัฒน์" width={90} height={90} priority className="rounded-full bg-background" />
+          <Image src={withBasePath("/images/logo.png")} alt="โรงพยาบาลราชพิพัฒน์" width={90} height={90} priority className="rounded-full bg-background" />
           <h1 className="mt-6 font-heading text-2xl font-extrabold tracking-tight">เข้าสู่ระบบ</h1>
           <p className="mt-1 text-sm text-muted-foreground">TrainPass <span className="max-sm:hidden">· </span><span className="max-sm:block">ลงทะเบียน อนุมัติ และเช็คชื่อผู้เข้าอบรม</span></p>
         </div>

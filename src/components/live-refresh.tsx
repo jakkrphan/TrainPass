@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useRef } from "react";
+import { withBasePath } from "@/lib/base-path";
 
 /**
  * Polls a cheap state endpoint with If-None-Match and re-renders the page only when the server reports a change.
@@ -20,7 +21,7 @@ export function LiveRefresh({ url, intervalMs = 4000 }: { url: string; intervalM
     async function poll() {
       try {
         const target = `${url}${url.includes("?") ? "&" : "?"}since=${since.current}`;
-        const response = await fetch(target, { cache: "no-store", headers: etag.current ? { "If-None-Match": etag.current } : {} });
+        const response = await fetch(withBasePath(target), { cache: "no-store", headers: etag.current ? { "If-None-Match": etag.current } : {} });
         if (cancelled || response.status === 304) return;
         if (!response.ok) { router.refresh(); return; }
         const body = await response.json() as { serverTime?: number };
