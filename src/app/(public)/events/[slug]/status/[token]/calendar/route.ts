@@ -62,7 +62,7 @@ export async function GET(_request: Request, { params }: RouteContext<"/events/[
   const body = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
-    "PRODID:-//CheckInHub//Training Calendar//TH",
+    "PRODID:-//TrainPass//Training Calendar//TH",
     "CALSCALE:GREGORIAN",
     "METHOD:PUBLISH",
     ...events,

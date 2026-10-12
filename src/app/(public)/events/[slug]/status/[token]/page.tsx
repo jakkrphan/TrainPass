@@ -134,7 +134,7 @@ export default async function RegistrationStatusPage({ params, searchParams }: P
               </div>
             </div>
             <p className="text-center text-xs">ใช้ QR เดียวกันเช็คชื่อได้ในวันที่อนุมัติแล้ว</p>
-            <Button asChild className="h-12 w-full bg-foreground text-base font-bold text-background hover:bg-foreground/90"><a href={qrDataUrl} download="checkinhub-qr.png"><DownloadIcon aria-hidden="true" />บันทึก QR ลงเครื่อง</a></Button>
+            <Button asChild className="h-12 w-full bg-foreground text-base font-bold text-background hover:bg-foreground/90"><a href={qrDataUrl} download="eventpass-qr.png"><DownloadIcon aria-hidden="true" />บันทึก QR ลงเครื่อง</a></Button>
             {flags.calendarDownload && <Button asChild variant="outline" className="h-11 w-full border-primary-foreground/50 bg-transparent text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground"><a href={`/events/${slug}/status/${token}/calendar`}><CalendarPlusIcon aria-hidden="true" />ดาวน์โหลดวันที่เข้าอบรม (.ics)</a></Button>}
           </section>
         ) : (

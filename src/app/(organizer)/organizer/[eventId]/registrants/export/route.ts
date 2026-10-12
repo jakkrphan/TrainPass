@@ -61,7 +61,7 @@ export async function GET(request: Request, context: RouteContext<"/organizer/[e
   }
 
   const workbook = new ExcelJS.Workbook();
-  workbook.creator = "CheckInHub";
+  workbook.creator = "TrainPass";
   const sheet = workbook.addWorksheet("ผู้ลงทะเบียน", { views: [{ state: "frozen", ySplit: 1 }] });
   sheet.addRow(header).font = { bold: true };
   for (const row of rows) sheet.addRow(row.map(cellText));

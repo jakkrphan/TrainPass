@@ -52,7 +52,7 @@ export async function sendEmail(message: { to: string; subject: string; text: st
   const transport = nodemailer.createTransport(config.options);
   try {
     const result = await transport.sendMail({
-      from: { name: "ระบบ CheckInHub", address: config.from },
+      from: { name: "ระบบ TrainPass", address: config.from },
       to: { address: message.to, name: "" },
       subject: message.subject, text: message.text, html: message.html,
       // Stable across retries; SMTP itself does not guarantee exactly-once delivery.

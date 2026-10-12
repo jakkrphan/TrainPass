@@ -8,10 +8,10 @@ const anuphan = Anuphan({ subsets: ["thai", "latin"], weight: ["500", "600", "70
 
 export const metadata: Metadata = {
   title: {
-    default: "CheckInHub",
-    template: "%s | CheckInHub",
+    default: "TrainPass",
+    template: "%s | TrainPass",
   },
-  description: "ระบบลงทะเบียนและเช็คชื่อผู้เข้าร่วมอบรม",
+  description: "จัดการลงทะเบียน อนุมัติผู้เข้าอบรม และเช็คชื่อหน้างานได้ในที่เดียว",
 };
 
 // viewport-fit=cover lets sticky footers pad themselves with env(safe-area-inset-*) on notched phones.

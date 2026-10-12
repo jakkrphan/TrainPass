@@ -16,11 +16,11 @@ Event and venue staff (hosts, front-of-house, organizers) who check in attendees
 
 ## Product Purpose
 
-CheckInHub lets event/venue staff check people in as they arrive, replacing ad hoc methods (paper lists, spreadsheets, generic form tools) with a dedicated check-in flow.
+TrainPass helps training teams manage registration through arrival in one workflow: configurable registration forms, approval and waitlists, attendee QR passes, and check-in with an encrypted offline queue.
 
 ## Positioning
 
-Undecided. The specific mechanism or edge over spreadsheets/generic form tools/existing check-in SaaS has not been confirmed yet — do not invent a differentiator (e.g. QR speed, real-time dashboard) until the user confirms one.
+An training operations workflow that connects registration, approval, attendee passes, and on-site check-in. Its distinguishing value is continuity across those steps, including a check-in queue that can work offline. Do not claim comparative superiority, guaranteed speed, or production readiness.
 
 ## Operating Context
 
