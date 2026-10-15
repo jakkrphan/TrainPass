@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { headers } from "next/headers";
-import { ClipboardListIcon, CopyIcon, ExternalLinkIcon, ImageIcon, LayoutDashboardIcon, LinkIcon, MoreVerticalIcon, PencilIcon, PlusIcon, SearchIcon, Trash2Icon, UsersIcon, XIcon } from "lucide-react";
+import { ClipboardListIcon, CopyIcon, ExternalLinkIcon, ImageIcon, LayoutDashboardIcon, LinkIcon, LockKeyholeIcon, MoreVerticalIcon, PencilIcon, PlusIcon, SearchIcon, Trash2Icon, UsersIcon, XIcon } from "lucide-react";
 
 import { cloneEvent } from "@/app/(organizer)/organizer/actions";
 import { deleteOwnedEvent } from "@/app/(organizer)/organizer/[eventId]/delete-action";
@@ -25,7 +25,7 @@ import { isFeatureEnabled, mayCreateEvents } from "@/server/settings/features";
 import { withBasePath } from "@/lib/base-path";
 
 export const metadata: Metadata = {
-  title: "โครงการของฉัน",
+  title: "โครงการ",
 };
 
 const EVENTS_PAGE_SIZE = 20;
@@ -77,13 +77,17 @@ export default async function OrganizerPage({ searchParams }: PageProps<"/organi
   const params = await searchParams;
   const status = typeof params.status === "string" && ["DRAFT", "PUBLISHED", "CLOSED"].includes(params.status) ? params.status : "ALL";
   const query = typeof params.q === "string" ? params.q.trim().slice(0, 100) : "";
+  const mine = params.scope === "mine";
+  // Every organizer sees every project in the list; editing stays limited to the owner, FULL co-organizers and admins
+  // (enforced again by requireEventAccess on each project page).
   const accessWhere: Prisma.EventWhereInput = user.role === "ADMIN" ? { deletedAt: null } : { deletedAt: null, OR: [{ ownerId: user.id }, { organizers: { some: { userId: user.id, role: "FULL" } } }] };
-  const listWhere: Prisma.EventWhereInput = { AND: [accessWhere, ...(status !== "ALL" ? [{ status: status as "DRAFT" | "PUBLISHED" | "CLOSED" }] : []), ...(query ? [{ title: { contains: query } }] : [])] };
+  const visibleWhere: Prisma.EventWhereInput = mine ? accessWhere : { deletedAt: null };
+  const listWhere: Prisma.EventWhereInput = { AND: [visibleWhere,...(status !== "ALL" ? [{ status: status as "DRAFT" | "PUBLISHED" | "CLOSED" }] : []), ...(query ? [{ title: { contains: query } }] : [])] };
   const canCreate = await mayCreateEvents(user.role);
   const canClone = canCreate && await isFeatureEnabled("eventClone");
-  // Tab counts cover every project the user can manage; the table loads one page of the filtered list.
+  // Tab counts cover every project in the chosen scope; the table loads one page of the filtered list.
   const [byStatus, listTotal, cloneSources] = await Promise.all([
-    db.event.groupBy({ by: ["status"], where: accessWhere, _count: { _all: true } }),
+    db.event.groupBy({ by: ["status"], where: visibleWhere, _count: { _all: true } }),
     db.event.count({ where: listWhere }),
     canClone ? db.event.findMany({ where: accessWhere, orderBy: { createdAt: "desc" }, take: CLONE_PICKER_LIMIT, select: { id: true, title: true, status: true, fields: true, _count: { select: { days: true } } } }) : Promise.resolve([]),
   ]);
@@ -91,7 +95,7 @@ export default async function OrganizerPage({ searchParams }: PageProps<"/organi
   const totalEvents = byStatus.reduce((sum, row) => sum + row._count._all, 0);
   const paging = pageWindow(readPage(params.page), EVENTS_PAGE_SIZE, listTotal);
   const pageHref = (target: number) => {
-    const next = new URLSearchParams({ ...(status !== "ALL" ? { status } : {}), ...(query ? { q: query } : {}), ...(target > 1 ? { page: String(target) } : {}) });
+    const next = new URLSearchParams({ ...(mine ? { scope: "mine" } : {}), ...(status !== "ALL" ? { status } : {}), ...(query ? { q: query } : {}), ...(target > 1 ? { page: String(target) } : {}) });
     return `/organizer${next.size ? `?${next}` : ""}`;
   };
   const events = await db.event.findMany({
@@ -101,6 +105,8 @@ export default async function OrganizerPage({ searchParams }: PageProps<"/organi
       days: { orderBy: { date: "asc" }, select: { id: true, date: true, maxSeats: true } },
       sessions: { select: { eventDayId: true } },
       clonedFrom: { select: { title: true, deletedAt: true } },
+      owner: { select: { name: true } },
+      organizers: { where: { userId: user.id }, select: { role: true } },
       _count: { select: { registrants: true } },
     },
   });
@@ -118,6 +124,11 @@ export default async function OrganizerPage({ searchParams }: PageProps<"/organi
     { value: "PUBLISHED", label: "เผยแพร่", count: statusTotal("PUBLISHED") },
     { value: "CLOSED", label: "ปิดรับ", count: statusTotal("CLOSED") },
   ];
+  const scopeFilters = [{ mine: false, label: "ทั้งหมด" }, { mine: true, label: "ที่ฉันจัดการได้" }];
+  const listHref = (filter: { mine: boolean; status: string }) => {
+    const next = new URLSearchParams({ ...(filter.mine ? { scope: "mine" } : {}), status: filter.status, ...(query ? { q: query } : {}) });
+    return `/organizer?${next}`;
+  };
   const requestHeaders = await headers();
   const origin = process.env.APP_BASE_URL ?? `${requestHeaders.get("x-forwarded-proto") ?? "http"}://${requestHeaders.get("host")}`;
 
@@ -125,8 +136,8 @@ export default async function OrganizerPage({ searchParams }: PageProps<"/organi
     <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 px-5 py-8 lg:px-10">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="flex flex-col gap-1.5">
-          <h1 className="font-heading text-3xl font-bold tracking-tight">โครงการของฉัน</h1>
-          <p className="text-sm text-muted-foreground">{totalEvents.toLocaleString("th-TH")} โครงการที่คุณ{user.role === "ADMIN" ? "ดูแลได้ในฐานะผู้ดูแลระบบ" : "เป็นเจ้าของหรือผู้ร่วมจัด"}</p>
+          <h1 className="font-heading text-3xl font-bold tracking-tight">โครงการ</h1>
+          <p className="text-sm text-muted-foreground">{totalEvents.toLocaleString("th-TH")} โครงการ{mine ? `ที่คุณ${user.role === "ADMIN" ? "ดูแลได้ในฐานะผู้ดูแลระบบ" : "เป็นเจ้าของหรือผู้ร่วมจัด"}` : "ในระบบ · แก้ไขได้เฉพาะโครงการที่คุณเป็นเจ้าของหรือผู้ร่วมจัด"}</p>
         </div>
         <div className="flex flex-wrap gap-2">
           {canClone && cloneSources.length > 0 && <>
@@ -151,11 +162,18 @@ export default async function OrganizerPage({ searchParams }: PageProps<"/organi
       {params.deleted === "1" && <p role="status" className="rounded-lg border border-primary/30 bg-accent px-4 py-3 text-sm text-accent-foreground">ลบโครงการแล้ว — ถ้ามีผู้ลงทะเบียน ระบบเก็บข้อมูลเดิมไว้ตรวจสอบย้อนหลัง</p>}
 
       <div className="flex flex-wrap items-center justify-between gap-4">
-        <nav aria-label="กรองสถานะโครงการ" className="flex flex-wrap gap-0.5 rounded-lg bg-[#eae6dd] p-1">
-          {statusFilters.map((filter) => <Link key={filter.value} href={`/organizer?status=${filter.value}${query ? `&q=${encodeURIComponent(query)}` : ""}`} aria-current={status === filter.value ? "page" : undefined}
-            className={cn("rounded-md px-3.5 py-1.5 text-sm", status === filter.value ? "bg-card font-semibold text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}>{filter.label} {filter.count}</Link>)}
-        </nav>
+        <div className="flex flex-wrap gap-2">
+          <nav aria-label="ขอบเขตโครงการ" className="flex flex-wrap gap-0.5 rounded-lg bg-[#eae6dd] p-1">
+            {scopeFilters.map((scope) => <Link key={scope.label} href={listHref({ mine: scope.mine, status })} aria-current={mine === scope.mine ? "page" : undefined}
+              className={cn("rounded-md px-3.5 py-1.5 text-sm", mine === scope.mine ? "bg-card font-semibold text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}>{scope.label}</Link>)}
+          </nav>
+          <nav aria-label="กรองสถานะโครงการ" className="flex flex-wrap gap-0.5 rounded-lg bg-[#eae6dd] p-1">
+            {statusFilters.map((filter) => <Link key={filter.value} href={listHref({ mine, status: filter.value })} aria-current={status === filter.value ? "page" : undefined}
+              className={cn("rounded-md px-3.5 py-1.5 text-sm", status === filter.value ? "bg-card font-semibold text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}>{filter.label} {filter.count}</Link>)}
+          </nav>
+        </div>
         <form method="get" role="search" className="relative w-full sm:w-72">
+          {mine && <input type="hidden" name="scope" value="mine" />}
           {status !== "ALL" && <input type="hidden" name="status" value={status} />}
           <SearchIcon className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
           <label htmlFor="project-search" className="sr-only">ค้นหาชื่อโครงการ</label>
@@ -191,6 +209,7 @@ export default async function OrganizerPage({ searchParams }: PageProps<"/organi
               {events.map((event) => {
                 const owner = event.ownerId === user.id;
                 const canAdminister = owner || user.role === "ADMIN";
+                const canManage = canAdminister || event.organizers[0]?.role === "FULL";
                 const setup = event.status === "DRAFT" ? nextSetupStep(event) : null;
                 const pending = countOf(event.id, "PENDING");
                 const waitlisted = countOf(event.id, "WAITLISTED");
@@ -201,7 +220,8 @@ export default async function OrganizerPage({ searchParams }: PageProps<"/organi
                   <TableCell className="px-6 py-4 max-xl:col-start-1 max-xl:row-start-1"><div className="relative flex h-14 w-24 max-xl:h-12 max-xl:w-20 items-center justify-center overflow-hidden rounded-lg bg-[#d9d8ce] text-[#4a463f]">{event.coverImageUrl ? <Image src={withBasePath(coverThumbUrl(event.coverImageUrl))} alt="" fill unoptimized sizes="96px" className="object-cover" /> : <div className="flex flex-col items-center gap-1"><ImageIcon className="size-5" aria-hidden="true" /><span className="text-[10px] font-semibold">รูปปก</span></div>}</div></TableCell>
                   <TableCell className="py-4 max-xl:col-start-2 max-xl:row-start-1">
                     <div className="flex flex-col gap-2">
-                      <Link href={openHref} className="py-0.5 font-heading text-base font-semibold leading-snug whitespace-normal hover:underline">{event.title}</Link>
+                      {canManage ? <Link href={openHref} className="py-0.5 font-heading text-base font-semibold leading-snug whitespace-normal hover:underline">{event.title}</Link>
+                        : <span className="flex flex-col gap-0.5"><span className="py-0.5 font-heading text-base font-semibold leading-snug whitespace-normal">{event.title}</span><span className="text-xs text-muted-foreground">ผู้จัด: {event.owner.name}</span></span>}
                       <span className="flex flex-wrap gap-1.5">
                         <span className={cn(chip, statusTone[event.status])}>{statusLabel[event.status]}</span>
                         <span className={cn(chip, "bg-muted text-foreground")}>{typeLabel[event.eventType]}</span>
@@ -214,10 +234,11 @@ export default async function OrganizerPage({ searchParams }: PageProps<"/organi
                     {event.days.slice(0, 3).map((day) => <span key={day.id} className="flex h-11 w-10.5 flex-col items-center justify-center rounded-lg border bg-background"><span className="font-heading text-[15px] font-bold leading-tight">{formatDayNumber(day.date)}</span><span className="text-[11px] text-muted-foreground">{formatMonth(day.date)}</span></span>)}
                     {event.days.length > 3 && <span className="text-xs text-muted-foreground">+{event.days.length - 3} วัน</span>}
                   </div> : <span className="text-sm text-muted-foreground">ยังไม่กำหนดวัน</span>}</TableCell>
-                  <TableCell className="text-sm text-muted-foreground max-2xl:hidden">{owner ? "เจ้าของ" : user.role === "ADMIN" ? "ผู้ดูแลระบบ" : "ผู้ร่วมจัด"}</TableCell>
+                  <TableCell className="text-sm text-muted-foreground max-2xl:hidden">{owner ? "เจ้าของ" : user.role === "ADMIN" ? "ผู้ดูแลระบบ" : canManage ? "ผู้ร่วมจัด" : event.organizers.length ? "เช็คชื่ออย่างเดียว" : "ดูอย่างเดียว"}</TableCell>
                   <TableCell className="max-xl:col-span-3 max-xl:row-start-3"><RegistrationSummary status={event.status} total={event._count.registrants} days={event.days} occupiedSeatsByDay={occupiedSeatsByDay} /></TableCell>
                   <TableCell className="max-xl:col-span-3 max-xl:row-start-4 max-xl:empty:hidden">
-                    {setup ? <Link href={`/organizer/${event.id}?step=${setup.step}`} className={cn(chip, "min-h-7 hover:opacity-80", setup.ready ? "bg-accent text-accent-foreground" : "bg-amber-100 text-amber-900")}>{setup.label}</Link>
+                    {!canManage ? <span className="text-sm text-muted-foreground">—</span>
+                      : setup ? <Link href={`/organizer/${event.id}?step=${setup.step}`} className={cn(chip, "min-h-7 hover:opacity-80", setup.ready ? "bg-accent text-accent-foreground" : "bg-amber-100 text-amber-900")}>{setup.label}</Link>
                       : pending || waitlisted ? <div className="flex max-w-40 flex-wrap gap-1">
                         {pending > 0 && <Link href={`/organizer/${event.id}/registrants?status=PENDING`} className={cn(chip, "min-h-7 bg-amber-100 text-amber-900 hover:opacity-80")}>รออนุมัติ {pending.toLocaleString("th-TH")}</Link>}
                         {waitlisted > 0 && <Link href={`/organizer/${event.id}/registrants?status=WAITLISTED`} className={cn(chip, "min-h-7 bg-muted text-foreground hover:opacity-80")}>รอคิว {waitlisted.toLocaleString("th-TH")}</Link>}
@@ -226,8 +247,9 @@ export default async function OrganizerPage({ searchParams }: PageProps<"/organi
                   <TableCell className="pr-4 max-xl:col-start-3 max-xl:row-start-1 max-xl:-mr-2 max-xl:-mt-1">
                     <Button type="button" variant="ghost" size="icon-lg" popoverTarget={menuId} aria-label={`เมนูของ ${event.title}`}><MoreVerticalIcon aria-hidden="true" /></Button>
                     {/* Native popover: rendered in the top layer, so the table's horizontal scroll never clips it. */}
-                    <div id={menuId} popover="auto" className="m-auto w-[min(92vw,340px)] rounded-xl border bg-card p-2 shadow-xl backdrop:bg-black/20">
+                    <div id={menuId} popover="auto" className="m-auto w-[min(92vw,340px)] whitespace-normal rounded-xl border bg-card p-2 shadow-xl backdrop:bg-black/20">
                       <div className="flex items-start justify-between gap-2 px-3 pb-2 pt-1.5"><p className="line-clamp-2 font-heading font-bold">{event.title}</p><Badge variant="secondary" className={statusTone[event.status]}>{statusLabel[event.status]}</Badge></div>
+                      {canManage ? <>
                       <div className="flex flex-col border-t pt-1">
                         {event.status !== "DRAFT" && <MenuLink href={`/organizer/${event.id}/dashboard`} icon={LayoutDashboardIcon}>ภาพรวมโครงการ</MenuLink>}
                         {event.status !== "DRAFT" && <MenuLink href={`/organizer/${event.id}/registrants`} icon={UsersIcon}>ผู้ลงทะเบียน</MenuLink>}
@@ -249,6 +271,19 @@ export default async function OrganizerPage({ searchParams }: PageProps<"/organi
                           </form>
                         </details> : <p className="flex items-center gap-2.5 px-2 py-2.5 text-sm text-muted-foreground"><Trash2Icon className="size-4" aria-hidden="true" />ลบโครงการได้เฉพาะเจ้าของ</p>}
                       </div>
+                      </> : <>
+                      <div className="flex items-start gap-2.5 border-t px-3 py-3">
+                        <LockKeyholeIcon className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                        <div className="flex flex-col gap-0.5">
+                          <p className="text-sm font-semibold">ดูได้อย่างเดียว</p>
+                          <p className="text-xs leading-relaxed text-muted-foreground">ถ้าต้องการแก้ไข ให้ <span className="font-medium text-foreground">{event.owner.name}</span> (เจ้าของโครงการ) เพิ่มคุณเป็นผู้ร่วมจัดก่อน</p>
+                        </div>
+                      </div>
+                      {event.status === "PUBLISHED" && <div className="flex flex-col gap-2 border-t px-3 py-2.5">
+                        <span className="flex items-center gap-2 text-sm"><LinkIcon className="size-4 text-muted-foreground" aria-hidden="true" />ลิงก์ลงทะเบียน</span>
+                        <div className="flex flex-wrap items-center gap-2"><CopyButton value={publicUrl} label="คัดลอกลิงก์" /><Button asChild variant="ghost" size="sm"><a href={withBasePath(`/events/${event.slug}`)} target="_blank" rel="noreferrer"><ExternalLinkIcon data-icon="inline-start" aria-hidden="true" />เปิดหน้า</a></Button></div>
+                      </div>}
+                      </>}
                     </div>
                   </TableCell>
                 </TableRow>;
