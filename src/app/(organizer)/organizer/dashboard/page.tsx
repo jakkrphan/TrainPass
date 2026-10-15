@@ -1,10 +1,10 @@
 import type { Prisma } from "@prisma/client";
 import type { Metadata } from "next";
-import { LayoutDashboardIcon, SearchIcon } from "lucide-react";
+import { LayoutDashboardIcon } from "lucide-react";
 
+import { AutoSearch } from "@/components/auto-search";
 import { Pagination } from "@/components/pagination";
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
-import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatEventDayList } from "@/lib/format";
 import { pageWindow, readPage } from "@/lib/pagination";
@@ -91,11 +91,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/organi
         </div>)}
       </section>
 
-      <form method="get" role="search" className="relative w-full sm:w-72">
-        <SearchIcon className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
-        <label htmlFor="dashboard-search" className="sr-only">ค้นหาชื่อโครงการ</label>
-        <Input id="dashboard-search" name="q" type="search" defaultValue={query} maxLength={100} placeholder="ค้นหาชื่อโครงการ" className="h-10 bg-card pl-9" />
-      </form>
+      <AutoSearch id="dashboard-search" label="ค้นหาชื่อโครงการ" placeholder="ค้นหาชื่อโครงการ" defaultValue={query} />
 
       {events.length === 0 ? (
         <Empty className="min-h-64 border bg-card">
