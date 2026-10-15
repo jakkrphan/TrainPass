@@ -16,11 +16,11 @@ Event and venue staff (hosts, front-of-house, organizers) who check in attendees
 
 ## Product Purpose
 
-TrainPass helps training teams manage registration through arrival in one workflow: configurable registration forms, approval and waitlists, attendee QR passes, and check-in with an encrypted offline queue.
+AttendPass helps training teams manage registration through arrival in one workflow: configurable registration forms, approval and waitlists, attendee QR passes, and check-in with an encrypted offline queue.
 
 ## Positioning
 
-An training operations workflow that connects registration, approval, attendee passes, and on-site check-in. Its distinguishing value is continuity across those steps, including a check-in queue that can work offline. Do not claim comparative superiority, guaranteed speed, or production readiness.
+A training operations workflow that connects registration, approval, attendee passes, and on-site check-in. Its distinguishing value is continuity across those steps, including a check-in queue that can work offline. Do not claim comparative superiority, guaranteed speed, or production readiness.
 
 ## Operating Context
 

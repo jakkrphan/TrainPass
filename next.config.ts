@@ -2,7 +2,7 @@ import type { NextConfig } from "next";
 
 const devAllowedOrigins = process.env.DEV_ALLOWED_ORIGINS?.split(",").map((host) => host.trim()).filter(Boolean);
 
-// Sub-path the app is served under, e.g. "/trainpass" (unset = domain root). Build-time only: changing it needs a rebuild.
+// Sub-path the app is served under, e.g. "/attendpass" (unset = domain root). Build-time only: changing it needs a rebuild.
 const basePath = (process.env.BASE_PATH ?? "").trim().replace(/\/+$/, "").replace(/^(?=[^/])/, "/");
 
 const nextConfig: NextConfig = {

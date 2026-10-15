@@ -23,7 +23,7 @@ const job = (name, script, cron) => ({
 module.exports = {
   apps: [
     {
-      name: "trainpass",
+      name: "attendpass",
       script: ".next/standalone/server.js",
       cwd: __dirname,
       // Loaded before server.js changes into .next/standalone, so the path is relative to the repo root.
@@ -44,8 +44,8 @@ module.exports = {
         NEXT_TELEMETRY_DISABLED: "1",
       },
     },
-    job("trainpass-pending-holds", "scripts/run-pending-holds.mjs", "*/15 * * * *"),
-    job("trainpass-notifications", "scripts/run-notifications.mjs", "*/5 * * * *"),
-    job("trainpass-retention", "scripts/run-retention.mjs", "30 2 * * *"),
+    job("attendpass-pending-holds", "scripts/run-pending-holds.mjs", "*/15 * * * *"),
+    job("attendpass-notifications", "scripts/run-notifications.mjs", "*/5 * * * *"),
+    job("attendpass-retention", "scripts/run-retention.mjs", "30 2 * * *"),
   ],
 };

@@ -33,7 +33,7 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
         <div className="flex flex-col items-center text-center">
           <Image src={withBasePath("/images/logo.png")} alt="โรงพยาบาลราชพิพัฒน์" width={90} height={90} priority className="rounded-full bg-background" />
           <h1 className="mt-6 font-heading text-2xl font-extrabold tracking-tight">เข้าสู่ระบบ</h1>
-          <p className="mt-1 text-sm text-muted-foreground">TrainPass <span className="max-sm:hidden">· </span><span className="max-sm:block">ลงทะเบียน อนุมัติ และเช็คชื่อผู้เข้าอบรม</span></p>
+          <p className="mt-1 text-sm text-muted-foreground">AttendPass <span className="max-sm:hidden">· </span><span className="max-sm:block">ลงทะเบียน อนุมัติ และเช็คชื่อผู้เข้าอบรม</span></p>
         </div>
 
         <div className="mt-6 text-center">

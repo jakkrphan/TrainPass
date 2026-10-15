@@ -21,7 +21,7 @@ CMD ["./node_modules/.bin/prisma", "migrate", "deploy"]
 FROM deps AS builder
 COPY . .
 
-# Sub-path such as /trainpass; inlined by next build, so set it as a build argument (empty = domain root).
+# Sub-path such as /attendpass; inlined by next build, so set it as a build argument (empty = domain root).
 ARG BASE_PATH=""
 ENV BASE_PATH=$BASE_PATH
 
@@ -30,8 +30,8 @@ ENV NODE_ENV=production \
     DATABASE_URL=mysql://build:build@127.0.0.1:3306/checkinhub \
     AUTH_SECRET=build-only-not-a-real-secret \
     AUTH_TRUST_HOST=true \
-    APP_BASE_URL=https://checkinhub.tech \
-    UPLOAD_DIR=/tmp/checkinhub-uploads
+    APP_BASE_URL=https://attendpass.example.org \
+    UPLOAD_DIR=/tmp/attendpass-uploads
 
 RUN npx prisma generate \
   && npm run build

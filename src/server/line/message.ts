@@ -77,7 +77,7 @@ export function buildLineFlexMessage(kind: LineNotificationKind, person: Recipie
       body: {
         type: "box", layout: "vertical", spacing: "md",
         contents: [
-          { type: "text", text: "TrainPass", size: "xs", color: "#6b7280" },
+          { type: "text", text: "AttendPass", size: "xs", color: "#6b7280" },
           { type: "text", text: content.title, weight: "bold", size: "lg", wrap: true },
           ...(content.intro ? [{ type: "text", text: content.intro, size: "sm", color: "#374151", wrap: true }] : []),
           { type: "separator" },

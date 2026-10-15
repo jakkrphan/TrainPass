@@ -62,7 +62,7 @@ export async function GET(_request: Request, { params }: RouteContext<"/events/[
   const body = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
-    "PRODID:-//TrainPass//Training Calendar//TH",
+    "PRODID:-//AttendPass//Training Calendar//TH",
     "CALSCALE:GREGORIAN",
     "METHOD:PUBLISH",
     ...events,
@@ -73,7 +73,7 @@ export async function GET(_request: Request, { params }: RouteContext<"/events/[
   return new Response(body, {
     headers: {
       "Content-Type": "text/calendar; charset=utf-8",
-      "Content-Disposition": 'attachment; filename="checkinhub-training.ics"',
+      "Content-Disposition": 'attachment; filename="attendpass-training.ics"',
       "Cache-Control": "private, no-store",
       "X-Content-Type-Options": "nosniff",
     },

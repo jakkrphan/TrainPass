@@ -93,7 +93,7 @@ test("SMTP sends one recipient with a PNG attachment, stable message ID, and alw
   const png = Buffer.from("fake-png");
   const result = await sendEmail({ to: "recipient@example.test", subject: "ผล", text: "text", html: "html", retryKey: "fixed-id", qr: png });
   assert.equal(result.ok, true);
-  assert.deepEqual(sent.from, { name: "ระบบ TrainPass", address: "sender@example.test" });
+  assert.deepEqual(sent.from, { name: "ระบบ AttendPass", address: "sender@example.test" });
   assert.deepEqual(sent.to, { address: "recipient@example.test", name: "" });
   assert.equal(sent.messageId, "<fixed-id@example.test>");
   assert.equal(sent.attachments[0].content, png);
