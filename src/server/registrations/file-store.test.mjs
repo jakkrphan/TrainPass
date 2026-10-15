@@ -50,10 +50,10 @@ test("a small cover is not enlarged; copies and deletes take the thumbnail along
 
 test("non-images and wrong extensions are refused, and nothing is written", async () => {
   const before = (await readdir(folder)).length;
-  assert.deepEqual(await storeLocalCover(new File([Buffer.from("%PDF-1.4 not an image")], "cover.jpg")), { ok: false });
-  assert.deepEqual(await storeLocalCover(new File([await photo(100, 100)], "cover.gif")), { ok: false });
+  assert.deepEqual(await storeLocalCover(new File([Buffer.from("%PDF-1.4 not an image")], "cover.jpg")), { ok: false, error: "cover-invalid" });
+  assert.deepEqual(await storeLocalCover(new File([await photo(100, 100)], "cover.gif")), { ok: false, error: "cover-invalid" });
   // The signature decides: a PNG named .jpg never reaches the decoder.
-  assert.deepEqual(await storeLocalCover(new File([await photo(100, 100, "png")], "cover.jpg")), { ok: false });
+  assert.deepEqual(await storeLocalCover(new File([await photo(100, 100, "png")], "cover.jpg")), { ok: false, error: "cover-invalid" });
   assert.equal((await readdir(folder)).length, before);
 });
 

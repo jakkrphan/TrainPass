@@ -3,10 +3,11 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { headers } from "next/headers";
-import { ClipboardListIcon, CopyIcon, ExternalLinkIcon, ImageIcon, LayoutDashboardIcon, LinkIcon, LockKeyholeIcon, MoreVerticalIcon, PencilIcon, PlusIcon, SearchIcon, Trash2Icon, UsersIcon, XIcon } from "lucide-react";
+import { ClipboardListIcon, CopyIcon, ExternalLinkIcon, ImageIcon, LayoutDashboardIcon, LinkIcon, LockKeyholeIcon, MoreVerticalIcon, PencilIcon, PlusIcon, Trash2Icon, UsersIcon, XIcon } from "lucide-react";
 
 import { cloneEvent } from "@/app/(organizer)/organizer/actions";
 import { deleteOwnedEvent } from "@/app/(organizer)/organizer/[eventId]/delete-action";
+import { AutoSearch } from "@/components/auto-search";
 import { CopyButton } from "@/components/copy-button";
 import { Pagination } from "@/components/pagination";
 import { ParamCombobox } from "@/components/param-combobox";
@@ -14,12 +15,12 @@ import { coverThumbUrl } from "@/features/events/cover-url";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
-import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { readRegistrationFields, validateRegistrationFields } from "@/features/events/registration-fields";
 import { formatDayNumber, formatMonth } from "@/lib/format";
 import { pageWindow, readPage } from "@/lib/pagination";
 import { cn } from "@/lib/utils";
+import { manageableEventsWhere, visibleEventsWhere } from "@/server/authorization/event-visibility";
 import { requireActiveUser } from "@/server/authorization/session";
 import { db } from "@/server/db";
 import { isFeatureEnabled, mayCreateEvents } from "@/server/settings/features";
@@ -119,20 +120,21 @@ export default async function OrganizerPage({ searchParams }: PageProps<"/organi
   const query = typeof params.q === "string" ? params.q.trim().slice(0, 100) : "";
   const mine = params.scope === "mine";
   const organizerId = typeof params.organizer === "string" ? params.organizer.slice(0, 64) : "";
-  // Every organizer sees every project in the list; editing stays limited to the owner, FULL co-organizers and admins
-  // (enforced again by requireEventAccess on each project page).
-  const accessWhere: Prisma.EventWhereInput = user.role === "ADMIN" ? { deletedAt: null } : { deletedAt: null, OR: [{ ownerId: user.id }, { organizers: { some: { userId: user.id, role: "FULL" } } }] };
-  const visibleWhere: Prisma.EventWhereInput = mine ? accessWhere : { deletedAt: null };
+  // Every organizer sees all published/closed projects (read-only) plus their own drafts; editing stays limited to the
+  // owner, FULL co-organizers and admins (enforced again by requireEventAccess on each project page).
+  const accessWhere = manageableEventsWhere(user);
+  const visibleWhere = mine ? accessWhere : visibleEventsWhere(user);
   const listWhere: Prisma.EventWhereInput = { AND: [visibleWhere,...(status !== "ALL" ? [{ status: status as "DRAFT" | "PUBLISHED" | "CLOSED" }] : []), ...(query ? [{ title: { contains: query } }] : []), ...(organizerId ? [{ organizers: { some: { userId: organizerId } } }] : [])] };
   const canCreate = await mayCreateEvents(user.role);
   const canClone = canCreate && await isFeatureEnabled("eventClone");
   // Tab counts cover every project in the chosen scope; the table loads one page of the filtered list.
-  const [byStatus, listTotal, cloneSources, coOrganizers] = await Promise.all([
+  const [byStatus, listTotal, cloneSources, hasCoOrganizers, filteredPerson] = await Promise.all([
     db.event.groupBy({ by: ["status"], where: visibleWhere, _count: { _all: true } }),
     db.event.count({ where: listWhere }),
     canClone ? db.event.findMany({ where: accessWhere, orderBy: { createdAt: "desc" }, take: CLONE_PICKER_LIMIT, select: { id: true, title: true, status: true, fields: true, _count: { select: { days: true } } } }) : Promise.resolve([]),
-    // Everyone who co-organizes at least one project, for the "co-organizer" filter.
-    db.user.findMany({ where: { organizerOf: { some: { event: { deletedAt: null } } } }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
+    // The co-organizer filter searches names through /api/co-organizers; here only "is there anyone" and the chosen name.
+    db.eventOrganizer.findFirst({ where: { event: visibleWhere }, select: { id: true } }).then(Boolean),
+    organizerId ? db.user.findUnique({ where: { id: organizerId }, select: { name: true } }) : Promise.resolve(null),
   ]);
   const statusTotal = (value: string) => byStatus.find((row) => row.status === value)?._count._all ?? 0;
   const totalEvents = byStatus.reduce((sum, row) => sum + row._count._all, 0);
@@ -172,7 +174,6 @@ export default async function OrganizerPage({ searchParams }: PageProps<"/organi
     const next = new URLSearchParams({ ...(filter.mine ? { scope: "mine" } : {}), status: filter.status, ...(query ? { q: query } : {}), ...(organizerId ? { organizer: organizerId } : {}) });
     return `/organizer?${next}`;
   };
-  const filteredPerson = organizerId ? coOrganizers.find((person) => person.id === organizerId) : undefined;
   const requestHeaders = await headers();
   const origin = process.env.APP_BASE_URL ?? `${requestHeaders.get("x-forwarded-proto") ?? "http"}://${requestHeaders.get("host")}`;
 
@@ -181,7 +182,7 @@ export default async function OrganizerPage({ searchParams }: PageProps<"/organi
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="flex flex-col gap-1.5">
           <h1 className="font-heading text-3xl font-bold tracking-tight">โครงการ</h1>
-          <p className="text-sm text-muted-foreground">{totalEvents.toLocaleString("th-TH")} โครงการ{mine ? `ที่คุณ${user.role === "ADMIN" ? "ดูแลได้ในฐานะผู้ดูแลระบบ" : "เป็นเจ้าของหรือผู้ร่วมจัด"}` : "ในระบบ · แก้ไขได้เฉพาะโครงการที่คุณเป็นเจ้าของหรือผู้ร่วมจัด"}</p>
+          <p className="text-sm text-muted-foreground">{totalEvents.toLocaleString("th-TH")} โครงการ{mine ? `ที่คุณ${user.role === "ADMIN" ? "ดูแลได้ในฐานะผู้ดูแลระบบ" : "เป็นเจ้าของหรือผู้ร่วมจัด"}` : user.role === "ADMIN" ? "ในระบบ" : "ในระบบ · ฉบับร่างแสดงเฉพาะของคุณ · แก้ไขได้เฉพาะโครงการที่คุณเป็นเจ้าของหรือผู้ร่วมจัด"}</p>
         </div>
         <div className="flex flex-wrap gap-2">
           {canClone && cloneSources.length > 0 && <>
@@ -217,17 +218,10 @@ export default async function OrganizerPage({ searchParams }: PageProps<"/organi
           </nav>
         </div>
         <div className="flex w-full flex-wrap gap-2 sm:w-auto">
-          <ParamCombobox id="organizer-filter" name="organizer" label="กรองตามผู้ร่วมจัด" value={organizerId} disabled={!coOrganizers.length}
-            placeholder={coOrganizers.length ? "ผู้ร่วมจัด: พิมพ์ชื่อเพื่อกรอง" : "ยังไม่มีผู้ร่วมจัดในระบบ"}
-            options={coOrganizers.map((person) => ({ value: person.id, label: person.name }))} />
-          <form method="get" role="search" className="relative w-full sm:w-72">
-            {mine && <input type="hidden" name="scope" value="mine" />}
-            {status !== "ALL" && <input type="hidden" name="status" value={status} />}
-            {organizerId && <input type="hidden" name="organizer" value={organizerId} />}
-            <SearchIcon className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
-            <label htmlFor="project-search" className="sr-only">ค้นหาชื่อโครงการ</label>
-            <Input id="project-search" name="q" type="search" defaultValue={query} maxLength={100} placeholder="ค้นหาชื่อโครงการ" className="h-10 bg-card pl-9" />
-          </form>
+          <ParamCombobox id="organizer-filter" name="organizer" label="กรองตามผู้ร่วมจัด" endpoint="/api/co-organizers"
+            value={organizerId} selectedLabel={filteredPerson?.name ?? ""} disabled={!hasCoOrganizers && !organizerId}
+            placeholder={hasCoOrganizers ? "ผู้ร่วมจัด: พิมพ์ชื่อเพื่อกรอง" : "ยังไม่มีผู้ร่วมจัดในระบบ"} />
+          <AutoSearch id="project-search" label="ค้นหาชื่อโครงการ" placeholder="ค้นหาชื่อโครงการ" defaultValue={query} />
         </div>
       </div>
       {filteredPerson && <p role="status" className="-mt-2 text-sm text-muted-foreground">โครงการที่ <span className="font-semibold text-foreground">{filteredPerson.name}</span> เป็นผู้ร่วมจัด · {listTotal.toLocaleString("th-TH")} โครงการ</p>}

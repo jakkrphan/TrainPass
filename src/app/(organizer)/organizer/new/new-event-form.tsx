@@ -67,6 +67,8 @@ export function NewEventForm() {
 
           {state && <div role="alert" className="flex flex-col gap-1 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
             <p>{state.error}</p>
+            {/* Listed here too: some fields have no inline slot or are hidden (e.g. the threshold in per-day mode). */}
+            {Object.keys(state.fieldErrors).length > 0 && <ul className="ml-4 list-disc">{[...new Set(Object.values(state.fieldErrors))].map((message) => <li key={message}>{message}</li>)}</ul>}
             {state.coverDropped && <p>ข้อมูลที่กรอกไว้ยังอยู่ แต่ต้องเลือกรูปปกใหม่อีกครั้ง</p>}
           </div>}
           <EventInfoFields key={state?.attempt ?? 0} event={state ? defaultsFrom(state.values) : undefined} deadlineDate={state?.values.deadlineDate} showRetention={false} errors={state?.fieldErrors} />

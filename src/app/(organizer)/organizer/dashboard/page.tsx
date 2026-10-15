@@ -41,11 +41,12 @@ export default async function DashboardPage({ searchParams }: PageProps<"/organi
   const allWhere: Prisma.EventWhereInput = { deletedAt: null, status: { in: ["PUBLISHED", "CLOSED"] } };
   const listWhere: Prisma.EventWhereInput = query ? { AND: [allWhere, { title: { contains: query } }] } : allWhere;
 
-  const [eventCount, totalsByStatus, listTotal] = await Promise.all([
+  const [eventCount, totalsByStatus, searchTotal] = await Promise.all([
     db.event.count({ where: allWhere }),
     db.registrant.groupBy({ by: ["status"], where: { event: allWhere }, _count: { _all: true } }),
-    db.event.count({ where: listWhere }),
+    query ? db.event.count({ where: listWhere }) : Promise.resolve(null),
   ]);
+  const listTotal = searchTotal ?? eventCount;
   const totals = emptyCounts();
   for (const row of totalsByStatus) addCount(totals, row.status, row._count._all);
 

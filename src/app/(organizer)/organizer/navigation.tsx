@@ -6,13 +6,21 @@ import { CalendarDaysIcon, ClipboardListIcon, LayoutDashboardIcon, ShieldCheckIc
 
 import { cn } from "@/lib/utils";
 
-const DASHBOARD = "/organizer/dashboard";
 const workLinks = [
-  { href: DASHBOARD, label: "แดชบอร์ด", icon: LayoutDashboardIcon },
+  { href: "/organizer/dashboard", label: "แดชบอร์ด", icon: LayoutDashboardIcon },
   { href: "/organizer", label: "โครงการ", icon: ClipboardListIcon },
   { href: "/check-in", label: "เช็คชื่อหน้างาน", icon: CalendarDaysIcon },
 ];
 const systemLinks = [{ href: "/admin", label: "ผู้ดูแลระบบ", icon: ShieldCheckIcon }];
+const allLinks = [...workLinks, ...systemLinks];
+
+/** The menu entry for a path: the longest href it falls under, so /organizer/dashboard is not also "โครงการ". */
+function activeHref(pathname: string) {
+  return allLinks.map((link) => link.href).filter((href) => pathname === href || pathname.startsWith(`${href}/`)).sort((a, b) => b.length - a.length)[0];
+}
+
+/** True for a page that has its own menu entry (e.g. the dashboard), as opposed to a project page under /organizer. */
+export const isMenuPage = (pathname: string) => allLinks.some((link) => link.href === pathname);
 
 function NavLink({ href, label, icon: Icon, active, compact }: { href: string; label: string; icon: typeof ClipboardListIcon; active: boolean; compact: boolean }) {
   return (
@@ -34,18 +42,18 @@ function NavLink({ href, label, icon: Icon, active, compact }: { href: string; l
 }
 
 export function OrganizerNavigation({ isAdmin, compact = false }: { isAdmin: boolean; compact?: boolean }) {
-  const pathname = usePathname();
+  const active = activeHref(usePathname());
   const wide = !compact;
 
   return (
     <nav aria-label="เมนูหลัก" className={cn("flex gap-1 sm:gap-2 lg:flex-col", wide && "lg:w-full lg:gap-4")}>
       <div className={cn("flex gap-1 sm:gap-2 lg:flex-col", wide && "lg:gap-1")}>
         <span className={cn("hidden px-3 pb-1 text-[11px] font-bold tracking-wide text-sidebar-foreground/50", wide && "lg:block")}>งานของฉัน</span>
-        {workLinks.map(({ href, ...item }) => <NavLink key={href} href={href} {...item} active={pathname.startsWith(href) && (href === DASHBOARD || !pathname.startsWith(DASHBOARD))} compact={compact} />)}
+        {workLinks.map(({ href, ...item }) => <NavLink key={href} href={href} {...item} active={href === active} compact={compact} />)}
       </div>
       {isAdmin && <div className={cn("flex gap-1 sm:gap-2 lg:flex-col", wide && "lg:gap-1")}>
         <span className={cn("hidden px-3 pb-1 text-[11px] font-bold tracking-wide text-sidebar-foreground/50", wide && "lg:block")}>ระบบ</span>
-        {systemLinks.map(({ href, ...item }) => <NavLink key={href} href={href} {...item} active={pathname.startsWith(href)} compact={compact} />)}
+        {systemLinks.map(({ href, ...item }) => <NavLink key={href} href={href} {...item} active={href === active} compact={compact} />)}
       </div>}
     </nav>
   );

@@ -68,6 +68,9 @@ const createFieldMessage: Partial<Record<keyof CreateEventValues, string>> = {
   deadlineDate: "วันปิดรับลงทะเบียนไม่ถูกต้อง",
   attendanceThreshold: "เกณฑ์เข้าอบรมต้องเป็นจำนวนเต็ม 1–100",
   pendingHoldHours: "เวลาจองที่นั่งต้องเป็นจำนวนเต็ม 1–720 ชั่วโมง",
+  eventType: "กรุณาเลือกประเภทโครงการ",
+  seatMode: "กรุณาเลือกโหมดการนับที่นั่ง",
+  waitlistPromotion: "กรุณาเลือกวิธีเลื่อนคิวเมื่อมีที่นั่งว่าง",
 };
 
 function createEventValues(formData: FormData): CreateEventValues {
@@ -94,9 +97,9 @@ export async function createEvent(_previous: CreateEventState, formData: FormDat
     const fieldErrors: NonNullable<CreateEventState>["fieldErrors"] = {};
     for (const issue of parsed.error.issues) {
       const field = issue.path[0] as keyof CreateEventValues;
-      fieldErrors[field] ??= createFieldMessage[field] ?? "ค่าที่เลือกไม่ถูกต้อง";
+      fieldErrors[field] ??= createFieldMessage[field] ?? "ข้อมูลโครงการบางช่องไม่ถูกต้อง กรุณาโหลดหน้าใหม่แล้วลองอีกครั้ง";
     }
-    return refuse("กรุณาแก้ไขช่องที่มีข้อความสีแดง", fieldErrors);
+    return refuse("กรุณาแก้ไขข้อมูลต่อไปนี้", fieldErrors);
   }
 
   const registrationDeadline = parsed.data.deadlineDate
@@ -105,7 +108,7 @@ export async function createEvent(_previous: CreateEventState, formData: FormDat
   if (registrationDeadline && (
     Number.isNaN(registrationDeadline.valueOf()) ||
     registrationDeadline.toISOString().slice(0, 10) !== parsed.data.deadlineDate
-  )) return refuse("กรุณาแก้ไขช่องที่มีข้อความสีแดง", { deadlineDate: createFieldMessage.deadlineDate });
+  )) return refuse("กรุณาแก้ไขข้อมูลต่อไปนี้", { deadlineDate: createFieldMessage.deadlineDate });
 
   const cover = await storeLocalCover(formData.get("coverImage"));
   if (!cover.ok) return refuse(coverErrorMessage[cover.error]);

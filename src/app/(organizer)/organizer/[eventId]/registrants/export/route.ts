@@ -89,7 +89,8 @@ export async function GET(request: Request, context: RouteContext<"/organizer/[e
       ["ชื่อ", "อีเมล", ...group.sessions.map((session) => session.label)],
       people.map((person) => [person.displayName ?? "", person.email ?? "", ...group.sessions.map((session) => {
         const checkIn = person.checkIns.find((item) => item.sessionId === session.id);
-        return checkIn ? thaiTime.format(checkIn.checkedInAt) : "";
+        // A day sheet's name carries the date; sessions open on every day need it in the cell.
+        return checkIn ? (group.date ? thaiTime : thaiDateTime).format(checkIn.checkedInAt) : "";
       })]),
     );
   }
