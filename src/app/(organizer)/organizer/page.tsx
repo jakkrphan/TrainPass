@@ -9,6 +9,7 @@ import { cloneEvent } from "@/app/(organizer)/organizer/actions";
 import { deleteOwnedEvent } from "@/app/(organizer)/organizer/[eventId]/delete-action";
 import { CopyButton } from "@/components/copy-button";
 import { Pagination } from "@/components/pagination";
+import { ParamCombobox } from "@/components/param-combobox";
 import { coverThumbUrl } from "@/features/events/cover-url";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -68,6 +69,45 @@ function RegistrationSummary({ status, total, days, occupiedSeatsByDay }: {
   </div>;
 }
 
+const organizerRoleLabel = { FULL: "ผู้ร่วมจัด", CHECKIN_ONLY: "เช็คชื่ออย่างเดียว" } as const;
+const TEAM_PREVIEW = 2;
+
+/** Owner and co-organizers under a project's title: the first two inline, the rest behind a "+N" popover. */
+function EventTeam({ id, title, owner, organizers, highlight }: {
+  id: string;
+  title: string;
+  owner: string;
+  organizers: { userId: string; role: keyof typeof organizerRoleLabel; user: { name: string } }[];
+  highlight: string;
+}) {
+  const person = (item: (typeof organizers)[number]) => <span key={item.userId} title={`${item.user.name} · ${organizerRoleLabel[item.role]}`} className={cn("inline-flex min-w-0 max-w-full items-center gap-1 rounded-md border bg-background px-1.5 py-0.5", item.userId === highlight && "border-primary bg-accent")}>
+    <span className="max-w-40 truncate font-medium text-foreground">{item.user.name}</span>
+    <span className={cn("shrink-0", item.role === "FULL" ? "text-primary" : "text-muted-foreground")}>· {organizerRoleLabel[item.role]}</span>
+  </span>;
+  const rest = organizers.length - TEAM_PREVIEW;
+  return <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+    <span className="flex min-w-0 max-w-full gap-1" title={owner}>เจ้าของ <span className="max-w-48 truncate font-medium text-foreground">{owner}</span></span>
+    {organizers.length > 0 && <span aria-hidden="true">·</span>}
+    {organizers.slice(0, TEAM_PREVIEW).map(person)}
+    {rest > 0 && <>
+      <button type="button" popoverTarget={id} aria-label={`ดูผู้ร่วมจัดทั้งหมด ${organizers.length} คน`} className="rounded-md px-1.5 py-0.5 font-semibold text-primary hover:bg-accent">+{rest}</button>
+      <div id={id} popover="auto" className="m-auto w-[min(92vw,360px)] whitespace-normal rounded-xl border bg-card p-4 shadow-xl backdrop:bg-black/20">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex min-w-0 flex-col"><p className="font-heading font-bold">ทีมผู้จัด</p><p className="line-clamp-2 text-xs text-muted-foreground">{title}</p></div>
+          <Button type="button" variant="ghost" size="icon-sm" popoverTarget={id} popoverTargetAction="hide" aria-label="ปิด"><XIcon aria-hidden="true" /></Button>
+        </div>
+        <ul className="mt-3 flex max-h-[60vh] flex-col divide-y overflow-y-auto text-sm">
+          <li className="flex items-center justify-between gap-3 py-2"><span className="font-medium">{owner}</span><span className="text-xs text-muted-foreground">เจ้าของ</span></li>
+          {organizers.map((item) => <li key={item.userId} className={cn("flex items-center justify-between gap-3 py-2", item.userId === highlight && "font-semibold")}>
+            <span>{item.user.name}</span>
+            <span className={cn("text-xs", item.role === "FULL" ? "text-primary" : "text-muted-foreground")}>{organizerRoleLabel[item.role]}</span>
+          </li>)}
+        </ul>
+      </div>
+    </>}
+  </div>;
+}
+
 function MenuLink({ href, icon: Icon, children, external }: { href: string; icon: typeof PencilIcon; children: React.ReactNode; external?: boolean }) {
   return <Link href={href} target={external ? "_blank" : undefined} rel={external ? "noreferrer" : undefined} className="flex items-center gap-2.5 rounded-md px-3 py-2.5 text-sm outline-none hover:bg-muted focus-visible:bg-muted"><Icon className="size-4 text-muted-foreground" aria-hidden="true" />{children}</Link>;
 }
@@ -78,24 +118,27 @@ export default async function OrganizerPage({ searchParams }: PageProps<"/organi
   const status = typeof params.status === "string" && ["DRAFT", "PUBLISHED", "CLOSED"].includes(params.status) ? params.status : "ALL";
   const query = typeof params.q === "string" ? params.q.trim().slice(0, 100) : "";
   const mine = params.scope === "mine";
+  const organizerId = typeof params.organizer === "string" ? params.organizer.slice(0, 64) : "";
   // Every organizer sees every project in the list; editing stays limited to the owner, FULL co-organizers and admins
   // (enforced again by requireEventAccess on each project page).
   const accessWhere: Prisma.EventWhereInput = user.role === "ADMIN" ? { deletedAt: null } : { deletedAt: null, OR: [{ ownerId: user.id }, { organizers: { some: { userId: user.id, role: "FULL" } } }] };
   const visibleWhere: Prisma.EventWhereInput = mine ? accessWhere : { deletedAt: null };
-  const listWhere: Prisma.EventWhereInput = { AND: [visibleWhere,...(status !== "ALL" ? [{ status: status as "DRAFT" | "PUBLISHED" | "CLOSED" }] : []), ...(query ? [{ title: { contains: query } }] : [])] };
+  const listWhere: Prisma.EventWhereInput = { AND: [visibleWhere,...(status !== "ALL" ? [{ status: status as "DRAFT" | "PUBLISHED" | "CLOSED" }] : []), ...(query ? [{ title: { contains: query } }] : []), ...(organizerId ? [{ organizers: { some: { userId: organizerId } } }] : [])] };
   const canCreate = await mayCreateEvents(user.role);
   const canClone = canCreate && await isFeatureEnabled("eventClone");
   // Tab counts cover every project in the chosen scope; the table loads one page of the filtered list.
-  const [byStatus, listTotal, cloneSources] = await Promise.all([
+  const [byStatus, listTotal, cloneSources, coOrganizers] = await Promise.all([
     db.event.groupBy({ by: ["status"], where: visibleWhere, _count: { _all: true } }),
     db.event.count({ where: listWhere }),
     canClone ? db.event.findMany({ where: accessWhere, orderBy: { createdAt: "desc" }, take: CLONE_PICKER_LIMIT, select: { id: true, title: true, status: true, fields: true, _count: { select: { days: true } } } }) : Promise.resolve([]),
+    // Everyone who co-organizes at least one project, for the "co-organizer" filter.
+    db.user.findMany({ where: { organizerOf: { some: { event: { deletedAt: null } } } }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
   ]);
   const statusTotal = (value: string) => byStatus.find((row) => row.status === value)?._count._all ?? 0;
   const totalEvents = byStatus.reduce((sum, row) => sum + row._count._all, 0);
   const paging = pageWindow(readPage(params.page), EVENTS_PAGE_SIZE, listTotal);
   const pageHref = (target: number) => {
-    const next = new URLSearchParams({ ...(mine ? { scope: "mine" } : {}), ...(status !== "ALL" ? { status } : {}), ...(query ? { q: query } : {}), ...(target > 1 ? { page: String(target) } : {}) });
+    const next = new URLSearchParams({ ...(mine ? { scope: "mine" } : {}), ...(status !== "ALL" ? { status } : {}), ...(query ? { q: query } : {}), ...(organizerId ? { organizer: organizerId } : {}), ...(target > 1 ? { page: String(target) } : {}) });
     return `/organizer${next.size ? `?${next}` : ""}`;
   };
   const events = await db.event.findMany({
@@ -106,7 +149,7 @@ export default async function OrganizerPage({ searchParams }: PageProps<"/organi
       sessions: { select: { eventDayId: true } },
       clonedFrom: { select: { title: true, deletedAt: true } },
       owner: { select: { name: true } },
-      organizers: { where: { userId: user.id }, select: { role: true } },
+      organizers: { orderBy: { addedAt: "asc" }, select: { userId: true, role: true, user: { select: { name: true } } } },
       _count: { select: { registrants: true } },
     },
   });
@@ -126,9 +169,10 @@ export default async function OrganizerPage({ searchParams }: PageProps<"/organi
   ];
   const scopeFilters = [{ mine: false, label: "ทั้งหมด" }, { mine: true, label: "ที่ฉันจัดการได้" }];
   const listHref = (filter: { mine: boolean; status: string }) => {
-    const next = new URLSearchParams({ ...(filter.mine ? { scope: "mine" } : {}), status: filter.status, ...(query ? { q: query } : {}) });
+    const next = new URLSearchParams({ ...(filter.mine ? { scope: "mine" } : {}), status: filter.status, ...(query ? { q: query } : {}), ...(organizerId ? { organizer: organizerId } : {}) });
     return `/organizer?${next}`;
   };
+  const filteredPerson = organizerId ? coOrganizers.find((person) => person.id === organizerId) : undefined;
   const requestHeaders = await headers();
   const origin = process.env.APP_BASE_URL ?? `${requestHeaders.get("x-forwarded-proto") ?? "http"}://${requestHeaders.get("host")}`;
 
@@ -172,14 +216,21 @@ export default async function OrganizerPage({ searchParams }: PageProps<"/organi
               className={cn("rounded-md px-3.5 py-1.5 text-sm", status === filter.value ? "bg-card font-semibold text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}>{filter.label} {filter.count}</Link>)}
           </nav>
         </div>
-        <form method="get" role="search" className="relative w-full sm:w-72">
-          {mine && <input type="hidden" name="scope" value="mine" />}
-          {status !== "ALL" && <input type="hidden" name="status" value={status} />}
-          <SearchIcon className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
-          <label htmlFor="project-search" className="sr-only">ค้นหาชื่อโครงการ</label>
-          <Input id="project-search" name="q" type="search" defaultValue={query} maxLength={100} placeholder="ค้นหาชื่อโครงการ" className="h-10 bg-card pl-9" />
-        </form>
+        <div className="flex w-full flex-wrap gap-2 sm:w-auto">
+          <ParamCombobox id="organizer-filter" name="organizer" label="กรองตามผู้ร่วมจัด" value={organizerId} disabled={!coOrganizers.length}
+            placeholder={coOrganizers.length ? "ผู้ร่วมจัด: พิมพ์ชื่อเพื่อกรอง" : "ยังไม่มีผู้ร่วมจัดในระบบ"}
+            options={coOrganizers.map((person) => ({ value: person.id, label: person.name }))} />
+          <form method="get" role="search" className="relative w-full sm:w-72">
+            {mine && <input type="hidden" name="scope" value="mine" />}
+            {status !== "ALL" && <input type="hidden" name="status" value={status} />}
+            {organizerId && <input type="hidden" name="organizer" value={organizerId} />}
+            <SearchIcon className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+            <label htmlFor="project-search" className="sr-only">ค้นหาชื่อโครงการ</label>
+            <Input id="project-search" name="q" type="search" defaultValue={query} maxLength={100} placeholder="ค้นหาชื่อโครงการ" className="h-10 bg-card pl-9" />
+          </form>
+        </div>
       </div>
+      {filteredPerson && <p role="status" className="-mt-2 text-sm text-muted-foreground">โครงการที่ <span className="font-semibold text-foreground">{filteredPerson.name}</span> เป็นผู้ร่วมจัด · {listTotal.toLocaleString("th-TH")} โครงการ</p>}
 
       {events.length === 0 ? (
         <Empty className="min-h-80 border bg-card">
@@ -209,7 +260,8 @@ export default async function OrganizerPage({ searchParams }: PageProps<"/organi
               {events.map((event) => {
                 const owner = event.ownerId === user.id;
                 const canAdminister = owner || user.role === "ADMIN";
-                const canManage = canAdminister || event.organizers[0]?.role === "FULL";
+                const membership = event.organizers.find((item) => item.userId === user.id);
+                const canManage = canAdminister || membership?.role === "FULL";
                 const setup = event.status === "DRAFT" ? nextSetupStep(event) : null;
                 const pending = countOf(event.id, "PENDING");
                 const waitlisted = countOf(event.id, "WAITLISTED");
@@ -221,7 +273,8 @@ export default async function OrganizerPage({ searchParams }: PageProps<"/organi
                   <TableCell className="py-4 max-xl:col-start-2 max-xl:row-start-1">
                     <div className="flex flex-col gap-2">
                       {canManage ? <Link href={openHref} className="py-0.5 font-heading text-base font-semibold leading-snug whitespace-normal hover:underline">{event.title}</Link>
-                        : <span className="flex flex-col gap-0.5"><span className="py-0.5 font-heading text-base font-semibold leading-snug whitespace-normal">{event.title}</span><span className="text-xs text-muted-foreground">ผู้จัด: {event.owner.name}</span></span>}
+                        : <span className="py-0.5 font-heading text-base font-semibold leading-snug whitespace-normal">{event.title}</span>}
+                      <EventTeam id={`team-${event.id}`} title={event.title} owner={event.owner.name} organizers={event.organizers} highlight={organizerId} />
                       <span className="flex flex-wrap gap-1.5">
                         <span className={cn(chip, statusTone[event.status])}>{statusLabel[event.status]}</span>
                         <span className={cn(chip, "bg-muted text-foreground")}>{typeLabel[event.eventType]}</span>
@@ -234,7 +287,7 @@ export default async function OrganizerPage({ searchParams }: PageProps<"/organi
                     {event.days.slice(0, 3).map((day) => <span key={day.id} className="flex h-11 w-10.5 flex-col items-center justify-center rounded-lg border bg-background"><span className="font-heading text-[15px] font-bold leading-tight">{formatDayNumber(day.date)}</span><span className="text-[11px] text-muted-foreground">{formatMonth(day.date)}</span></span>)}
                     {event.days.length > 3 && <span className="text-xs text-muted-foreground">+{event.days.length - 3} วัน</span>}
                   </div> : <span className="text-sm text-muted-foreground">ยังไม่กำหนดวัน</span>}</TableCell>
-                  <TableCell className="text-sm text-muted-foreground max-2xl:hidden">{owner ? "เจ้าของ" : user.role === "ADMIN" ? "ผู้ดูแลระบบ" : canManage ? "ผู้ร่วมจัด" : event.organizers.length ? "เช็คชื่ออย่างเดียว" : "ดูอย่างเดียว"}</TableCell>
+                  <TableCell className="text-sm text-muted-foreground max-2xl:hidden">{owner ? "เจ้าของ" : user.role === "ADMIN" ? "ผู้ดูแลระบบ" : canManage ? "ผู้ร่วมจัด" : membership ? "เช็คชื่ออย่างเดียว" : "ดูอย่างเดียว"}</TableCell>
                   <TableCell className="max-xl:col-span-3 max-xl:row-start-3"><RegistrationSummary status={event.status} total={event._count.registrants} days={event.days} occupiedSeatsByDay={occupiedSeatsByDay} /></TableCell>
                   <TableCell className="max-xl:col-span-3 max-xl:row-start-4 max-xl:empty:hidden">
                     {!canManage ? <span className="text-sm text-muted-foreground">—</span>
