@@ -2,11 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CalendarDaysIcon, ClipboardListIcon, ShieldCheckIcon } from "lucide-react";
+import { CalendarDaysIcon, ClipboardListIcon, LayoutDashboardIcon, ShieldCheckIcon } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
+const DASHBOARD = "/organizer/dashboard";
 const workLinks = [
+  { href: DASHBOARD, label: "แดชบอร์ด", icon: LayoutDashboardIcon },
   { href: "/organizer", label: "โครงการ", icon: ClipboardListIcon },
   { href: "/check-in", label: "เช็คชื่อหน้างาน", icon: CalendarDaysIcon },
 ];
@@ -39,7 +41,7 @@ export function OrganizerNavigation({ isAdmin, compact = false }: { isAdmin: boo
     <nav aria-label="เมนูหลัก" className={cn("flex gap-1 sm:gap-2 lg:flex-col", wide && "lg:w-full lg:gap-4")}>
       <div className={cn("flex gap-1 sm:gap-2 lg:flex-col", wide && "lg:gap-1")}>
         <span className={cn("hidden px-3 pb-1 text-[11px] font-bold tracking-wide text-sidebar-foreground/50", wide && "lg:block")}>งานของฉัน</span>
-        {workLinks.map(({ href, ...item }) => <NavLink key={href} href={href} {...item} active={pathname.startsWith(href)} compact={compact} />)}
+        {workLinks.map(({ href, ...item }) => <NavLink key={href} href={href} {...item} active={pathname.startsWith(href) && (href === DASHBOARD || !pathname.startsWith(DASHBOARD))} compact={compact} />)}
       </div>
       {isAdmin && <div className={cn("flex gap-1 sm:gap-2 lg:flex-col", wide && "lg:gap-1")}>
         <span className={cn("hidden px-3 pb-1 text-[11px] font-bold tracking-wide text-sidebar-foreground/50", wide && "lg:block")}>ระบบ</span>

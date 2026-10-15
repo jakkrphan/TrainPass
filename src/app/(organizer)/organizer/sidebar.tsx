@@ -9,7 +9,7 @@ import { withBasePath } from "@/lib/base-path";
 
 export function OrganizerSidebar({ isAdmin, name }: { isAdmin: boolean; name: string }) {
   const pathname = usePathname();
-  const compact = pathname === "/organizer/new" || /^\/organizer\/[^/]+$/.test(pathname);
+  const compact = pathname === "/organizer/new" || (/^\/organizer\/[^/]+$/.test(pathname) && pathname !== "/organizer/dashboard");
 
   return (
     <aside className={`flex shrink-0 print:hidden items-center justify-between gap-2 bg-sidebar px-3 py-2 sm:gap-3 sm:px-4 text-sidebar-foreground lg:min-h-svh lg:flex-col lg:justify-start lg:py-4 ${compact ? "lg:w-[72px] lg:items-center lg:px-2" : "lg:w-[236px] lg:items-stretch lg:px-3"}`}>
