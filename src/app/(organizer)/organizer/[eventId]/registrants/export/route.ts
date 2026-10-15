@@ -18,6 +18,7 @@ function csvCell(value: unknown) {
 
 const statusLabel: Record<string, string> = { PENDING: "รออนุมัติ", APPROVED: "อนุมัติแล้ว", REJECTED: "ไม่อนุมัติ", WAITLISTED: "คิวสำรอง", CANCELLED: "ยกเลิก" };
 const thaiDateTime = new Intl.DateTimeFormat("th-TH", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Bangkok" });
+const thaiTime = new Intl.DateTimeFormat("th-TH", { timeStyle: "short", timeZone: "Asia/Bangkok" });
 const thaiDay = new Intl.DateTimeFormat("th-TH", { dateStyle: "medium", timeZone: "UTC" });
 
 export async function GET(request: Request, context: RouteContext<"/organizer/[eventId]/registrants/export">) {
@@ -62,11 +63,36 @@ export async function GET(request: Request, context: RouteContext<"/organizer/[e
 
   const workbook = new ExcelJS.Workbook();
   workbook.creator = "AttendPass";
-  const sheet = workbook.addWorksheet("ผู้ลงทะเบียน", { views: [{ state: "frozen", ySplit: 1 }] });
-  sheet.addRow(header).font = { bold: true };
-  for (const row of rows) sheet.addRow(row.map(cellText));
-  sheet.columns.forEach((column, index) => { column.width = Math.min(48, Math.max(12, String(header[index] ?? "").length + 4)); });
-  sheet.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: header.length } };
+  const addSheet = (name: string, sheetHeader: string[], sheetRows: unknown[][]) => {
+    const sheet = workbook.addWorksheet(name, { views: [{ state: "frozen", ySplit: 1 }] });
+    sheet.addRow(sheetHeader).font = { bold: true };
+    for (const row of sheetRows) sheet.addRow(row.map(cellText));
+    sheet.columns.forEach((column, index) => { column.width = Math.min(48, Math.max(12, String(sheetHeader[index] ?? "").length + 4)); });
+    sheet.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: sheetHeader.length } };
+  };
+  // Main sheet keeps registrant data only; check-in times go to one sheet per event day.
+  const baseColumns = header.length - sessions.length;
+  addSheet("ผู้ลงทะเบียน", header.slice(0, baseColumns), rows.map((row) => row.slice(0, baseColumns)));
+  const dayGroups = new Map<string, { date: Date | null; sessions: typeof sessions }>();
+  for (const session of sessions) {
+    const key = session.eventDayId ?? "";
+    const group = dayGroups.get(key) ?? { date: session.eventDay?.date ?? null, sessions: [] };
+    group.sessions.push(session);
+    dayGroups.set(key, group);
+  }
+  for (const [eventDayId, group] of dayGroups) {
+    const people = eventDayId
+      ? registrants.filter((person) => person.days.some((item) => item.eventDayId === eventDayId) || person.checkIns.some((item) => group.sessions.some((session) => session.id === item.sessionId)))
+      : registrants;
+    addSheet(
+      `เช็คอิน ${group.date ? thaiDay.format(group.date) : "ทุกวัน"}`,
+      ["ชื่อ", "อีเมล", ...group.sessions.map((session) => session.label)],
+      people.map((person) => [person.displayName ?? "", person.email ?? "", ...group.sessions.map((session) => {
+        const checkIn = person.checkIns.find((item) => item.sessionId === session.id);
+        return checkIn ? thaiTime.format(checkIn.checkedInAt) : "";
+      })]),
+    );
+  }
   const buffer = await workbook.xlsx.writeBuffer();
   return new Response(new Uint8Array(buffer as ArrayBuffer), { headers: {
     "content-type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "content-disposition": disposition("xlsx"), "cache-control": "no-store",
