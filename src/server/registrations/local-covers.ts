@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import sharp from "sharp";
 
+import type { CoverError } from "@/features/events/cover-errors";
 import { coverThumbKey } from "@/features/events/cover-url";
 import { copyStoredFile, COVER_KEY, deleteStoredFiles, putFile } from "@/server/registrations/file-store";
 import { fileStorageReady } from "@/server/registrations/upload-storage";
@@ -24,15 +25,21 @@ function sniffImage(bytes: Buffer): "jpg" | "png" | "webp" | null {
   return null;
 }
 
+const refuse = (error: CoverError) => ({ ok: false as const, error });
+
 export async function storeLocalCover(value: FormDataEntryValue | null) {
   if (!(value instanceof File) || value.size === 0) return { ok: true as const, key: null };
-  if (!fileStorageReady() || value.size > maxCoverBytes) return { ok: false as const };
+  if (!fileStorageReady()) {
+    console.error("Cover upload refused: UPLOAD_DIR is not set, so this server has no file storage.");
+    return refuse("cover-storage");
+  }
+  if (value.size > maxCoverBytes) return refuse("cover-too-large");
 
   const bytes = Buffer.from(await value.arrayBuffer());
   // Only a real JPEG/PNG/WebP whose name agrees reaches the image decoder.
   const type = sniffImage(bytes);
   const declared = value.name.split(".").pop()?.toLowerCase() ?? "";
-  if (!type || !(type === "jpg" ? ["jpg", "jpeg"] : [type]).includes(declared)) return { ok: false as const };
+  if (!type || !(type === "jpg" ? ["jpg", "jpeg"] : [type]).includes(declared)) return refuse("cover-invalid");
 
   let large: Buffer;
   let thumb: Buffer;
@@ -43,8 +50,10 @@ export async function storeLocalCover(value: FormDataEntryValue | null) {
       image.clone().resize({ ...LARGE, fit: "inside", withoutEnlargement: true }).webp({ quality: 80 }).toBuffer(),
       image.clone().resize({ ...THUMB, fit: "cover" }).webp({ quality: 70 }).toBuffer(),
     ]);
-  } catch {
-    return { ok: false as const }; // not an image sharp can read
+  } catch (error) {
+    // Usually not an image sharp can read; logged because a broken sharp install on the server fails the same way.
+    console.error("Cover image could not be processed:", error);
+    return refuse("cover-invalid");
   }
 
   const key = `${randomUUID()}.webp`;

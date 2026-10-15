@@ -11,6 +11,7 @@ import { requiresAdminAudit } from "@/server/authorization/policy";
 import { requireEventAccess } from "@/server/authorization/event";
 import { requireActiveUser } from "@/server/authorization/session";
 import { db } from "@/server/db";
+import { coverErrorMessage } from "@/features/events/cover-errors";
 import { coverImageUrl } from "@/features/events/cover-url";
 import { copyLocalCover, deleteLocalCover, storeLocalCover } from "@/server/registrations/local-covers";
 import { promoteWaitlist } from "@/server/registrations/lifecycle";
@@ -53,12 +54,50 @@ function parseEventForm(formData: FormData) {
   });
 }
 
-export async function createEvent(formData: FormData) {
+/** What the new-project form typed, sent back on a refused submit so nothing has to be typed again. */
+export type CreateEventValues = {
+  title: string; description: string; location: string; deadlineDate: string; eventType: string; seatMode: string;
+  attendanceThreshold: string; autoApprove: boolean; waitlistEnabled: boolean; pendingHoldHours: string; waitlistPromotion: string;
+};
+export type CreateEventState = { error: string; fieldErrors: Partial<Record<keyof CreateEventValues, string>>; values: CreateEventValues; coverDropped: boolean } | null;
+
+const createFieldMessage: Partial<Record<keyof CreateEventValues, string>> = {
+  title: "กรุณากรอกชื่อโครงการ (ไม่เกิน 191 ตัวอักษร)",
+  description: "รายละเอียดยาวเกิน 10,000 ตัวอักษร",
+  location: "สถานที่ยาวเกิน 191 ตัวอักษร",
+  deadlineDate: "วันปิดรับลงทะเบียนไม่ถูกต้อง",
+  attendanceThreshold: "เกณฑ์เข้าอบรมต้องเป็นจำนวนเต็ม 1–100",
+  pendingHoldHours: "เวลาจองที่นั่งต้องเป็นจำนวนเต็ม 1–720 ชั่วโมง",
+};
+
+function createEventValues(formData: FormData): CreateEventValues {
+  const text = (name: string) => { const value = formData.get(name); return typeof value === "string" ? value : ""; };
+  return {
+    title: text("title"), description: text("description"), location: text("location"), deadlineDate: text("deadlineDate"),
+    eventType: text("eventType") || "INTERNAL", seatMode: text("seatMode") || "per_day", attendanceThreshold: text("attendanceThreshold"),
+    autoApprove: formData.get("autoApprove") === "on", waitlistEnabled: formData.get("waitlistEnabled") === "on",
+    pendingHoldHours: text("pendingHoldHours"), waitlistPromotion: text("waitlistPromotion") || "MANUAL",
+  };
+}
+
+export async function createEvent(_previous: CreateEventState, formData: FormData): Promise<CreateEventState> {
   const user = await requireActiveUser();
   if (!(await mayCreateEvents(user.role))) redirect("/organizer?error=create-disabled");
 
+  const values = createEventValues(formData);
+  const coverFile = formData.get("coverImage");
+  const coverSent = coverFile instanceof File && coverFile.size > 0;
+  const refuse = (error: string, fieldErrors: NonNullable<CreateEventState>["fieldErrors"] = {}) => ({ error, fieldErrors, values, coverDropped: coverSent });
+
   const parsed = parseEventForm(formData);
-  if (!parsed.success) redirect("/organizer/new?error=invalid");
+  if (!parsed.success) {
+    const fieldErrors: NonNullable<CreateEventState>["fieldErrors"] = {};
+    for (const issue of parsed.error.issues) {
+      const field = issue.path[0] as keyof CreateEventValues;
+      fieldErrors[field] ??= createFieldMessage[field] ?? "ค่าที่เลือกไม่ถูกต้อง";
+    }
+    return refuse("กรุณาแก้ไขช่องที่มีข้อความสีแดง", fieldErrors);
+  }
 
   const registrationDeadline = parsed.data.deadlineDate
     ? new Date(`${parsed.data.deadlineDate}T16:59:59.999Z`)
@@ -66,10 +105,10 @@ export async function createEvent(formData: FormData) {
   if (registrationDeadline && (
     Number.isNaN(registrationDeadline.valueOf()) ||
     registrationDeadline.toISOString().slice(0, 10) !== parsed.data.deadlineDate
-  )) redirect("/organizer/new?error=invalid");
+  )) return refuse("กรุณาแก้ไขช่องที่มีข้อความสีแดง", { deadlineDate: createFieldMessage.deadlineDate });
 
   const cover = await storeLocalCover(formData.get("coverImage"));
-  if (!cover.ok) redirect("/organizer/new?error=invalid-cover");
+  if (!cover.ok) return refuse(coverErrorMessage[cover.error]);
   const slug = `event-${randomUUID()}`;
 
   let event: { id: string };
@@ -135,7 +174,7 @@ export async function updateEvent(eventId: string, formData: FormData) {
   )) redirect(`/organizer/${eventId}?error=invalid`);
 
   const uploadedCover = await storeLocalCover(formData.get("coverImage"));
-  if (!uploadedCover.ok) redirect(`/organizer/${eventId}?step=1&error=invalid-cover`);
+  if (!uploadedCover.ok) redirect(`/organizer/${eventId}?step=1&error=${uploadedCover.error}`);
   const removeCover = formData.get("removeCover") === "on";
 
   // The cover this save replaces, read under the row lock: two saves at once must each delete the cover they replaced,

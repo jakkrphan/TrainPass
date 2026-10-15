@@ -12,10 +12,11 @@ const modes = [
 ] as const;
 
 /** Seat-counting mode (mockup B v3). Seat numbers themselves are set in step 2 for both modes. */
-export function SeatModeFields({ initialMode = "per_day", attendanceThreshold = null, locked = false }: {
+export function SeatModeFields({ initialMode = "per_day", attendanceThreshold = null, locked = false, thresholdError }: {
   initialMode?: string;
   attendanceThreshold?: number | null;
   locked?: boolean;
+  thresholdError?: string;
 }) {
   const [mode, setMode] = useState(initialMode);
   return <fieldset className="flex flex-col gap-3">
@@ -32,6 +33,6 @@ export function SeatModeFields({ initialMode = "per_day", attendanceThreshold = 
     </div>
     {locked && <input type="hidden" name="seatMode" value={mode} />}
     <p className="text-xs leading-relaxed text-muted-foreground">{locked ? "โครงการนี้เผยแพร่แล้วหรือมีผู้ลงทะเบียนแล้ว จึงเปลี่ยนโหมดไม่ได้ — ถ้าจำเป็นให้ทำสำเนา (clone) เป็นโครงการใหม่" : "เลือกได้เฉพาะตอนเป็นฉบับร่าง — เผยแพร่แล้วเปลี่ยนไม่ได้ เพราะความหมายของที่นั่งและของวันที่ผูกไว้เปลี่ยนทั้งหมด ถ้าจำเป็นให้ clone เป็นโครงการใหม่"}</p>
-    {mode === "whole_course" && <label className="flex max-w-xs flex-col gap-1.5 text-sm font-medium">เกณฑ์เข้าอบรมครบ (%)<Input name="attendanceThreshold" type="number" min={1} max={100} defaultValue={attendanceThreshold ?? ""} placeholder="ไม่กำหนด" className="h-10 bg-card" /></label>}
+    {mode === "whole_course" && <label className="flex max-w-xs flex-col gap-1.5 text-sm font-medium">เกณฑ์เข้าอบรมครบ (%)<Input name="attendanceThreshold" type="number" min={1} max={100} defaultValue={attendanceThreshold ?? ""} placeholder="ไม่กำหนด" className="h-10 bg-card" aria-invalid={thresholdError ? true : undefined} />{thresholdError && <span role="alert" className="font-normal text-destructive">{thresholdError}</span>}</label>}
   </fieldset>;
 }
