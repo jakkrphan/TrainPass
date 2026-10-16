@@ -24,15 +24,11 @@ function defaultsFrom(values: CreateEventValues): EventInfoDefaults {
   };
 }
 
-type FormState = CreateEventState & { attempt: number } | null;
-
 export function NewEventForm() {
+  // The server action itself is the form action, so the form also submits before hydration or without JS.
   // `attempt` remounts the fields after each refused submit, so they pick up the returned values
   // and the cover picker drops a preview whose file the browser has already cleared.
-  const [state, action, pending] = useActionState(async (previous: FormState, formData: FormData): Promise<FormState> => {
-    const result = await createEvent(previous, formData);
-    return result && { ...result, attempt: (previous?.attempt ?? 0) + 1 };
-  }, null);
+  const [state, action, pending] = useActionState<CreateEventState, FormData>(createEvent, null);
 
   return (
     <form action={action} className="flex min-h-[calc(100svh-60px)] flex-1 flex-col lg:flex-row">

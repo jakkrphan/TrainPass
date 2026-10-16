@@ -30,7 +30,8 @@ export function AutoSearch({ id, label, placeholder, defaultValue, className }: 
   function search(value: string) {
     window.clearTimeout(timer.current);
     timer.current = window.setTimeout(() => {
-      const next = new URLSearchParams(searchParams);
+      // The URL as it is now, not when the key was pressed: a tab or filter clicked during the delay must survive.
+      const next = new URLSearchParams(window.location.search);
       const query = value.trim();
       if (query) next.set("q", query); else next.delete("q");
       next.delete("page");

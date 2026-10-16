@@ -29,6 +29,8 @@ const statusLabel = {
 
 const errorMessage: Record<string, string> = {
   ...coverErrorMessage,
+  // Name used before cover errors were split by cause; old links still show a message.
+  "invalid-cover": coverErrorMessage["cover-invalid"],
   invalid: "กรุณาตรวจสอบข้อมูลโครงการอีกครั้ง",
   "invalid-day": "กรุณาเลือกวันที่และจำนวนที่นั่งให้ถูกต้อง",
   "duplicate-day": "วันที่นี้อยู่ในโครงการแล้ว",
@@ -175,7 +177,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/or
           <h2 className="font-heading text-[22px] font-bold">ข้อมูลโครงการ</h2>
           <p className="text-sm text-muted-foreground">ข้อมูลนี้แสดงบนหน้าลงทะเบียนสาธารณะ</p>
         </div>
-        {(error === "invalid" || isCoverError(error)) && <p role="alert" className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">{errorMessage[error]}{error === "invalid" && event.status !== "DRAFT" ? " · เปลี่ยนรูปแบบที่นั่งหรือลดที่นั่งทั้งหลักสูตรต่ำกว่าจำนวนที่จองแล้วไม่ได้" : ""}</p>}
+        {(error === "invalid" || error === "invalid-cover" || isCoverError(error)) && <p role="alert" className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">{errorMessage[error]}{error === "invalid" && event.status !== "DRAFT" ? " · เปลี่ยนรูปแบบที่นั่งหรือลดที่นั่งทั้งหลักสูตรต่ำกว่าจำนวนที่จองแล้วไม่ได้" : ""}</p>}
         {saved === "1" && <p role="status" className="rounded-lg border border-primary/30 bg-accent px-4 py-3 text-sm text-accent-foreground">บันทึกข้อมูลโครงการแล้ว</p>}
         {saved === "cloned" && <p role="status" className="rounded-lg border border-primary/30 bg-accent px-4 py-3 text-sm text-accent-foreground">ทำสำเนาโครงการแล้ว — คัดลอกข้อมูล ฟอร์ม รูปปก และรอบเช็คชื่อ (แบบไม่ผูกวัน) มาให้ ต้องกำหนดวันที่จัด ที่นั่ง วันปิดรับ และผู้ร่วมจัดใหม่</p>}
         <form id="event-info" action={save} className="flex flex-col gap-6">

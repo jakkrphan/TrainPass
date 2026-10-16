@@ -10,9 +10,8 @@ export function manageableEventsWhere(user: Viewer): Prisma.EventWhereInput {
 
 /**
  * Projects listed (read-only) to every staff member: anything published or closed, plus drafts the user can manage.
- * Other people's drafts stay private, as on the staff dashboard.
+ * Other people's drafts stay private, as on the staff dashboard. Built on manageableEventsWhere so the two never drift.
  */
 export function visibleEventsWhere(user: Viewer): Prisma.EventWhereInput {
-  if (user.role === "ADMIN") return { deletedAt: null };
-  return { deletedAt: null, OR: [{ status: { not: "DRAFT" } }, { ownerId: user.id }, { organizers: { some: { userId: user.id, role: "FULL" } } }] };
+  return { OR: [{ deletedAt: null, status: { not: "DRAFT" } }, manageableEventsWhere(user)] };
 }

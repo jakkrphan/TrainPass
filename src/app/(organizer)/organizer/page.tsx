@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { headers } from "next/headers";
-import { ClipboardListIcon, CopyIcon, ExternalLinkIcon, ImageIcon, LayoutDashboardIcon, LinkIcon, LockKeyholeIcon, MoreVerticalIcon, PencilIcon, PlusIcon, Trash2Icon, UsersIcon, XIcon } from "lucide-react";
+import { ClipboardListIcon, CopyIcon, ExternalLinkIcon, ImageIcon, CalendarDaysIcon, LayoutDashboardIcon, LinkIcon, LockKeyholeIcon, MoreVerticalIcon, PencilIcon, PlusIcon, Trash2Icon, UsersIcon, XIcon } from "lucide-react";
 
 import { cloneEvent } from "@/app/(organizer)/organizer/actions";
 import { deleteOwnedEvent } from "@/app/(organizer)/organizer/[eventId]/delete-action";
@@ -12,6 +12,7 @@ import { CopyButton } from "@/components/copy-button";
 import { Pagination } from "@/components/pagination";
 import { ParamCombobox } from "@/components/param-combobox";
 import { coverThumbUrl } from "@/features/events/cover-url";
+import { chipClass, eventStatusLabel, eventStatusTone } from "@/features/events/status-display";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
@@ -33,10 +34,10 @@ export const metadata: Metadata = {
 const EVENTS_PAGE_SIZE = 20;
 const CLONE_PICKER_LIMIT = 50;
 
-const statusLabel = { DRAFT: "ฉบับร่าง", PUBLISHED: "เผยแพร่แล้ว", CLOSED: "ปิดรับแล้ว" } as const;
-const statusTone = { DRAFT: "bg-amber-100 text-amber-900", PUBLISHED: "bg-accent text-accent-foreground", CLOSED: "bg-muted text-muted-foreground" } as const;
+const statusLabel = eventStatusLabel;
+const statusTone = eventStatusTone;
 const typeLabel = { INTERNAL: "ภายใน", EXTERNAL: "ภายนอก", MIXED: "ผสม" } as const;
-const chip = "inline-flex items-center rounded-md px-2.5 py-0.5 text-xs font-semibold whitespace-nowrap";
+const chip = chipClass;
 
 type Setup = { label: string; step: number; ready?: boolean };
 
@@ -127,9 +128,11 @@ export default async function OrganizerPage({ searchParams }: PageProps<"/organi
   const listWhere: Prisma.EventWhereInput = { AND: [visibleWhere,...(status !== "ALL" ? [{ status: status as "DRAFT" | "PUBLISHED" | "CLOSED" }] : []), ...(query ? [{ title: { contains: query } }] : []), ...(organizerId ? [{ organizers: { some: { userId: organizerId } } }] : [])] };
   const canCreate = await mayCreateEvents(user.role);
   const canClone = canCreate && await isFeatureEnabled("eventClone");
-  // Tab counts cover every project in the chosen scope; the table loads one page of the filtered list.
+  // Tab counts cover every project in the chosen scope and co-organizer filter (not the title search); the table loads
+  // one page of the fully filtered list.
+  const countWhere: Prisma.EventWhereInput = organizerId ? { AND: [visibleWhere, { organizers: { some: { userId: organizerId } } }] } : visibleWhere;
   const [byStatus, listTotal, cloneSources, hasCoOrganizers, filteredPerson] = await Promise.all([
-    db.event.groupBy({ by: ["status"], where: visibleWhere, _count: { _all: true } }),
+    db.event.groupBy({ by: ["status"], where: countWhere, _count: { _all: true } }),
     db.event.count({ where: listWhere }),
     canClone ? db.event.findMany({ where: accessWhere, orderBy: { createdAt: "desc" }, take: CLONE_PICKER_LIMIT, select: { id: true, title: true, status: true, fields: true, _count: { select: { days: true } } } }) : Promise.resolve([]),
     // The co-organizer filter searches names through /api/co-organizers; here only "is there anyone" and the chosen name.
@@ -321,11 +324,15 @@ export default async function OrganizerPage({ searchParams }: PageProps<"/organi
                       </> : <>
                       <div className="flex items-start gap-2.5 border-t px-3 py-3">
                         <LockKeyholeIcon className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-                        <div className="flex flex-col gap-0.5">
+                        {membership ? <div className="flex flex-col gap-0.5">
+                          <p className="text-sm font-semibold">คุณมีสิทธิ์เช็คชื่ออย่างเดียว</p>
+                          <p className="text-xs leading-relaxed text-muted-foreground">แก้ไขโครงการและดูรายชื่อไม่ได้ · ถ้าต้องการสิทธิ์เพิ่ม ให้ <span className="font-medium text-foreground">{event.owner.name}</span> (เจ้าของโครงการ) เปลี่ยนสิทธิ์ให้</p>
+                        </div> : <div className="flex flex-col gap-0.5">
                           <p className="text-sm font-semibold">ดูได้อย่างเดียว</p>
                           <p className="text-xs leading-relaxed text-muted-foreground">ถ้าต้องการแก้ไข ให้ <span className="font-medium text-foreground">{event.owner.name}</span> (เจ้าของโครงการ) เพิ่มคุณเป็นผู้ร่วมจัดก่อน</p>
-                        </div>
+                        </div>}
                       </div>
+                      {membership && event.status !== "DRAFT" && <div className="border-t pt-1"><MenuLink href={`/check-in/${event.id}`} icon={CalendarDaysIcon}>ไปหน้าเช็คชื่อ</MenuLink></div>}
                       {event.status === "PUBLISHED" && <div className="flex flex-col gap-2 border-t px-3 py-2.5">
                         <span className="flex items-center gap-2 text-sm"><LinkIcon className="size-4 text-muted-foreground" aria-hidden="true" />ลิงก์ลงทะเบียน</span>
                         <div className="flex flex-wrap items-center gap-2"><CopyButton value={publicUrl} label="คัดลอกลิงก์" /><Button asChild variant="ghost" size="sm"><a href={withBasePath(`/events/${event.slug}`)} target="_blank" rel="noreferrer"><ExternalLinkIcon data-icon="inline-start" aria-hidden="true" />เปิดหน้า</a></Button></div>

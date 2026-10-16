@@ -6,6 +6,7 @@ import { AutoSearch } from "@/components/auto-search";
 import { Pagination } from "@/components/pagination";
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { chipClass, eventStatusLabel, eventStatusTone } from "@/features/events/status-display";
 import { formatEventDayList } from "@/lib/format";
 import { pageWindow, readPage } from "@/lib/pagination";
 import { cn } from "@/lib/utils";
@@ -15,9 +16,6 @@ import { db } from "@/server/db";
 export const metadata: Metadata = { title: "แดชบอร์ด" };
 
 const EVENTS_PAGE_SIZE = 25;
-const statusLabel = { PUBLISHED: "เปิดรับ", CLOSED: "ปิดรับแล้ว" } as const;
-const statusTone = { PUBLISHED: "bg-accent text-accent-foreground", CLOSED: "bg-muted text-muted-foreground" } as const;
-const chip = "inline-flex items-center rounded-md px-2.5 py-0.5 text-xs font-semibold whitespace-nowrap";
 
 type Counts = { total: number; APPROVED: number; PENDING: number; WAITLISTED: number; other: number };
 const emptyCounts = (): Counts => ({ total: 0, APPROVED: 0, PENDING: 0, WAITLISTED: 0, other: 0 });
@@ -119,12 +117,11 @@ export default async function DashboardPage({ searchParams }: PageProps<"/organi
             <TableBody>
               {events.map((event) => {
                 const counts = countsByEvent.get(event.id) ?? emptyCounts();
-                const status = event.status as keyof typeof statusLabel;
                 return <TableRow key={event.id}>
                   <TableCell className="px-5 py-3.5 whitespace-normal">
                     <div className="flex flex-col gap-1.5">
                       <span className="font-heading font-semibold leading-snug">{event.title}</span>
-                      <span className="flex flex-wrap items-center gap-1.5"><span className={cn(chip, statusTone[status])}>{statusLabel[status]}</span>{event.location && <span className="text-xs text-muted-foreground">{event.location}</span>}</span>
+                      <span className="flex flex-wrap items-center gap-1.5"><span className={cn(chipClass, eventStatusTone[event.status])}>{eventStatusLabel[event.status]}</span>{event.location && <span className="text-xs text-muted-foreground">{event.location}</span>}</span>
                     </div>
                   </TableCell>
                   <TableCell className="whitespace-normal text-sm">{event.days.length ? formatEventDayList(event.days.map((day) => day.date)) : <span className="text-muted-foreground">ยังไม่กำหนดวัน</span>}</TableCell>

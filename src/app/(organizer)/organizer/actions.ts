@@ -59,7 +59,8 @@ export type CreateEventValues = {
   title: string; description: string; location: string; deadlineDate: string; eventType: string; seatMode: string;
   attendanceThreshold: string; autoApprove: boolean; waitlistEnabled: boolean; pendingHoldHours: string; waitlistPromotion: string;
 };
-export type CreateEventState = { error: string; fieldErrors: Partial<Record<keyof CreateEventValues, string>>; values: CreateEventValues; coverDropped: boolean } | null;
+/** `attempt` counts refused submits so the form can remount its fields with the returned values. */
+export type CreateEventState = { error: string; fieldErrors: Partial<Record<keyof CreateEventValues, string>>; values: CreateEventValues; coverDropped: boolean; attempt: number } | null;
 
 const createFieldMessage: Partial<Record<keyof CreateEventValues, string>> = {
   title: "กรุณากรอกชื่อโครงการ (ไม่เกิน 191 ตัวอักษร)",
@@ -83,14 +84,14 @@ function createEventValues(formData: FormData): CreateEventValues {
   };
 }
 
-export async function createEvent(_previous: CreateEventState, formData: FormData): Promise<CreateEventState> {
+export async function createEvent(previous: CreateEventState, formData: FormData): Promise<CreateEventState> {
   const user = await requireActiveUser();
   if (!(await mayCreateEvents(user.role))) redirect("/organizer?error=create-disabled");
 
   const values = createEventValues(formData);
   const coverFile = formData.get("coverImage");
   const coverSent = coverFile instanceof File && coverFile.size > 0;
-  const refuse = (error: string, fieldErrors: NonNullable<CreateEventState>["fieldErrors"] = {}) => ({ error, fieldErrors, values, coverDropped: coverSent });
+  const refuse = (error: string, fieldErrors: NonNullable<CreateEventState>["fieldErrors"] = {}) => ({ error, fieldErrors, values, coverDropped: coverSent, attempt: (previous?.attempt ?? 0) + 1 });
 
   const parsed = parseEventForm(formData);
   if (!parsed.success) {

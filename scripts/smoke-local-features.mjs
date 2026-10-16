@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import nextEnv from "@next/env";
@@ -238,7 +238,7 @@ try {
   ensure(sheet.getRow(1).values.includes("ชื่อ-นามสกุล") && !sheet.getRow(1).values.includes("เลขบัตร") && sheet.getRow(2).values.includes("สมชาย ถูกต้อง"), "xlsx content incorrect");
   ensure(await db.auditLog.count({ where: { eventId: event.id, action: "EXPORT_XLSX" } }) === 1, "xlsx export not audited");
 
-  // Retention: an event whose retention period has passed is anonymized and its uploads deleted.
+  // Registration data is kept permanently: the daily job only sweeps orphan files, even for a long-past event.
   const old = await db.event.create({ data: {
     slug: `retention-${suffix}`, title: "Retention smoke", ownerId: owner.id, status: "CLOSED", retentionDays: 30, fields,
     days: { create: [{ date: new Date("2020-01-01T00:00:00.000Z") }] },
@@ -254,19 +254,20 @@ try {
   response = await fetch(`${base}/api/jobs/retention`);
   ensure(response.status === 401, "Retention endpoint allowed an unauthenticated request");
   response = await fetch(`${base}/api/jobs/retention`, { headers: { authorization: `Bearer ${process.env.CRON_SECRET}` } });
-  ensure(response.ok && (await response.json()).anonymizedRegistrants >= 1, "Retention job did not run");
-  const scrubbed = await db.registrant.findUniqueOrThrow({ where: { id: retained.id } });
-  ensure(scrubbed.anonymizedAt && scrubbed.email === null && scrubbed.consentIp === null && scrubbed.qrCode === null && JSON.stringify(scrubbed.answers) === "{}" && scrubbed.status === "APPROVED", "Registrant was not anonymized");
-  ensure(!existsSync(join(uploadDir, storageKey)), "Retention left the uploaded file behind");
-  ensure((await db.event.findUniqueOrThrow({ where: { id: old.id } })).anonymizedAt && await db.auditLog.count({ where: { eventId: old.id, action: "RETENTION_ANONYMIZED" } }) === 1, "Event anonymization not recorded");
-  ensure(!(await db.registrant.findUniqueOrThrow({ where: { id: person.id } })).anonymizedAt, "Retention touched an event still within its retention period");
+  const job = response.ok ? await response.json() : null;
+  ensure(job && "orphanFilesDeleted" in job && !("anonymizedRegistrants" in job), "Retention job did not run");
+  const kept = await db.registrant.findUniqueOrThrow({ where: { id: retained.id } });
+  ensure(!kept.anonymizedAt && kept.email === `old-${suffix}@example.invalid` && kept.consentIp === "203.0.113.9" && kept.answers.name === "Old Person", "Retention job removed registration data that must be kept");
+  ensure(existsSync(join(uploadDir, storageKey)), "Retention job deleted a referenced upload");
+  rmSync(join(uploadDir, storageKey), { force: true }); // nothing else removes this test upload now
+  ensure(!(await db.event.findUniqueOrThrow({ where: { id: old.id } })).anonymizedAt && await db.auditLog.count({ where: { eventId: old.id, action: "RETENTION_ANONYMIZED" } }) === 0, "Retention job anonymized an event");
 
   // After the deadline the registrant can no longer edit.
   await db.event.update({ where: { id: event.id }, data: { registrationDeadline: new Date(Date.now() - 60_000) } });
   response = await post(editUrl, editForm, { "answer:name": "Too late", "answer:kind": "ทั่วไป" });
   ensure(!location(response).includes("updated=1") && (await db.registrant.findUniqueOrThrow({ where: { id: person.id } })).answers.name !== "Too late", "Self-edit accepted after the deadline");
 
-  process.stdout.write("Local features: self-edit, self-service day change, check-in corrections, ETag delta polling, check-in method and station, kiosk switch, session order, xlsx export and retention anonymization passed.\n");
+  process.stdout.write("Local features: self-edit, self-service day change, check-in corrections, ETag delta polling, check-in method and station, kiosk switch, session order, xlsx export and permanent data retention passed.\n");
 } finally {
   await db.systemSetting.deleteMany();
   for (const row of savedSettings) await db.systemSetting.create({ data: row });

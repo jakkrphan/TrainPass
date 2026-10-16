@@ -2,7 +2,7 @@
 // looked at, and referenced ones are kept. (Registration data itself is never deleted by time.)
 // Runs against a throwaway UPLOAD_DIR and an in-memory database, never the real ones.
 import assert from "node:assert/strict";
-import { access, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { access, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";

@@ -117,7 +117,7 @@ try {
   const updatedSettingsForm = formsFrom(html).find((form) => form.includes('name="coverImage"'));
   ensure(updatedSettingsForm, "Cover input missing from settings");
   response = await submit(updatedSettingsForm, { title: event.title, description: "Temporary event", location: "Test room", eventType: "MIXED", deadlineDate: "2031-12-31", autoApprove: "on", coverImage: new File(["not an image"], "invalid.png", { type: "image/png" }) });
-  ensure(response.status === 303 && response.headers.get("location")?.includes("error=invalid-cover"), "Invalid cover was not rejected");
+  ensure(response.status === 303 && response.headers.get("location")?.includes("error=cover-invalid"), "Invalid cover was not rejected");
   ensure((await db.event.findUniqueOrThrow({ where: { id: eventId } })).coverImageKey === coverKey, "Invalid cover replaced the previous image");
 
   // Form builder: the side panel adds a field when nothing is selected and edits the selected field otherwise.

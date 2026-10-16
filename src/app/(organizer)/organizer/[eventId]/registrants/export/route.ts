@@ -81,9 +81,12 @@ export async function GET(request: Request, context: RouteContext<"/organizer/[e
     dayGroups.set(key, group);
   }
   for (const [eventDayId, group] of dayGroups) {
-    const people = eventDayId
-      ? registrants.filter((person) => person.days.some((item) => item.eventDayId === eventDayId) || person.checkIns.some((item) => group.sessions.some((session) => session.id === item.sessionId)))
-      : registrants;
+    // Expected attendees only (approved for that day, or approved overall for every-day sessions), plus anyone who did
+    // check in, so cancelled, rejected and waitlisted people do not pad the roster with blank rows.
+    const checkedIn = (person: (typeof registrants)[number]) => person.checkIns.some((item) => group.sessions.some((session) => session.id === item.sessionId));
+    const people = registrants.filter((person) => checkedIn(person) || (eventDayId
+      ? person.days.some((item) => item.eventDayId === eventDayId && item.status === "APPROVED")
+      : person.status === "APPROVED"));
     addSheet(
       `เช็คอิน ${group.date ? thaiDay.format(group.date) : "ทุกวัน"}`,
       ["ชื่อ", "อีเมล", ...group.sessions.map((session) => session.label)],

@@ -196,7 +196,7 @@ export default async function RegistrantsPage({ params, searchParams }: PageProp
       </div>
     </section>}
     {search.error === "walk-in-disabled" && <p role="alert" className="mx-auto mt-4 w-full max-w-7xl rounded-xl border border-destructive/30 bg-destructive/10 px-5 py-3 text-sm text-destructive lg:px-10">ผู้ดูแลระบบปิดการเพิ่มผู้ลงทะเบียนเองไว้</p>}
-    {event.anonymizedAt && <p role="status" className="mx-auto mt-4 w-full max-w-7xl rounded-xl border bg-card px-5 py-3 text-sm text-muted-foreground lg:px-10">ข้อมูลส่วนบุคคลของโครงการนี้ถูกปกปิดแล้วเมื่อครบระยะเก็บข้อมูล {formatEventDay(event.anonymizedAt)} เหลือเฉพาะสถานะและสถิติ</p>}
+    {event.anonymizedAt && <p role="status" className="mx-auto mt-4 w-full max-w-7xl rounded-xl border bg-card px-5 py-3 text-sm text-muted-foreground lg:px-10">ข้อมูลส่วนบุคคลของโครงการนี้ถูกปกปิดไปแล้วเมื่อ {formatEventDay(event.anonymizedAt)} ตามกติการะยะเก็บข้อมูลเดิม (ตอนนี้เก็บถาวร) เหลือเฉพาะสถานะและสถิติ</p>}
 
     <div className="grid flex-1 grid-cols-[minmax(0,1fr)] lg:grid-cols-[minmax(340px,440px)_minmax(0,1fr)]">
       {/* Master list */}
@@ -360,7 +360,7 @@ export default async function RegistrantsPage({ params, searchParams }: PageProp
               })}
               {/* Answers to fields removed from the form stay stored (never silently deleted) but are not shown. */}
               {orphanKeys.length > 0 && <><dt className="border-b py-3 text-sm text-muted-foreground">คำตอบจากฟิลด์ที่ลบแล้ว</dt><dd className="flex flex-col gap-1.5 border-b py-3 text-sm text-muted-foreground">
-                <span>{`${orphanKeys.length} รายการ · ข้อความไม่แสดง เพราะฟิลด์ถูกลบออกจากฟอร์มแล้ว`}{orphanFiles.length > 0 ? " · ไฟล์แนบยังดาวน์โหลดได้จนกว่าจะครบระยะเก็บข้อมูล" : ""}</span>
+                <span>{`${orphanKeys.length} รายการ · ข้อความไม่แสดง เพราะฟิลด์ถูกลบออกจากฟอร์มแล้ว`}{orphanFiles.length > 0 ? " · ไฟล์แนบยังเก็บไว้และดาวน์โหลดได้" : ""}</span>
                 {orphanFiles.map(({ key, index, name }) => <a key={`${key}-${index}`} href={withBasePath(`/organizer/${eventId}/registrants/${person.id}/files/${encodeURIComponent(key)}?i=${index}`)} className="inline-flex min-h-8 items-center gap-1.5 text-foreground underline-offset-4 hover:underline [overflow-wrap:anywhere]"><FileIcon className="size-4 shrink-0" aria-hidden="true" />{name}</a>)}
               </dd></>}
               <dt className="py-3 text-sm text-muted-foreground">เช็คชื่อแล้ว</dt>
