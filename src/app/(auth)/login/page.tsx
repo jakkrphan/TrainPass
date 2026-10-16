@@ -23,7 +23,7 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
   const session = await auth();
   if (session?.user?.id && error !== "inactive") {
     const user = await db.user.findUnique({ where: { id: session.user.id }, select: { isActive: true } });
-    if (user?.isActive) redirect(next ?? "/organizer");
+    if (user?.isActive) redirect(next ?? "/organizer/dashboard");
   }
   const ldap = ldapEnabled();
 

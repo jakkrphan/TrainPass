@@ -21,7 +21,7 @@ export async function login(_previous: LoginState, formData: FormData): Promise<
       email,
       password: formData.get("password"),
       // Staff without organizer access are forwarded to check-in by the organizer page itself.
-      redirectTo: withBasePath(safeReturnTo(formData.get("next")) ?? "/organizer"),
+      redirectTo: withBasePath(safeReturnTo(formData.get("next")) ?? "/organizer/dashboard"),
     });
     return {};
   } catch (cause) {
