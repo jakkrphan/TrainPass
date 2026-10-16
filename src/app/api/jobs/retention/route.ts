@@ -1,9 +1,13 @@
 import { timingSafeEqual } from "node:crypto";
 
-import { anonymizeExpiredEvents, sweepOrphanFiles } from "@/server/registrations/retention";
+import { sweepOrphanFiles } from "@/server/registrations/retention";
 
 export const dynamic = "force-dynamic";
 
+/**
+ * Daily file maintenance. Registration data is kept permanently, so this no longer anonymizes anything: it only deletes
+ * stored files no row refers to (see sweepOrphanFiles). The path keeps its old name so existing cron entries keep working.
+ */
 export async function GET(request: Request) {
   const secret = process.env.CRON_SECRET;
   if (!secret) return Response.json({ status: "unavailable" }, { status: 503 });
@@ -13,13 +17,10 @@ export async function GET(request: Request) {
   if (expectedBytes.length !== suppliedBytes.length || !timingSafeEqual(expectedBytes, suppliedBytes)) {
     return Response.json({ status: "unauthorized" }, { status: 401 });
   }
-  const result = await anonymizeExpiredEvents();
-  // After anonymizing, so files whose deletion failed there (recorded in PendingFile) are retried once a day old.
-  // A failed sweep is reported on its own (orphanFilesDeleted: null) instead of hiding the anonymization that already
-  // happened; the next run tries again.
+  // A failed sweep is reported (orphanFilesDeleted: null) rather than failing the request; the next run tries again.
   const orphanFilesDeleted = await sweepOrphanFiles().catch((error: unknown) => {
     console.error(`Orphan file sweep failed: ${(error as Error).name}`);
     return null;
   });
-  return Response.json({ status: "ok", ...result, orphanFilesDeleted }, { headers: { "Cache-Control": "no-store" } });
+  return Response.json({ status: "ok", orphanFilesDeleted }, { headers: { "Cache-Control": "no-store" } });
 }

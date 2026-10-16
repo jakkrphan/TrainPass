@@ -5,18 +5,14 @@ import { Prisma } from "@prisma/client";
 import { readFileAnswers } from "@/features/events/registration-fields";
 import { db } from "@/server/db";
 import { coverThumbKey } from "@/features/events/cover-url";
-import { deleteStoredFiles, isStoredKey, recordPending } from "@/server/registrations/file-store";
-import { deleteLocalRegistrationFiles } from "@/server/registrations/local-files";
+import { deleteStoredFiles, isStoredKey } from "@/server/registrations/file-store";
 import { fileStorageReady } from "@/server/registrations/upload-storage";
 import { hashBearerCode } from "@/server/registrations/registration";
 
+// Registration data is kept permanently: there is no time-based anonymization. Personal data is only removed when
+// an organizer approves a registrant's own deletion request (data-requests.ts), which reuses anonymizedRegistrantData.
 const DAY_MS = 24 * 60 * 60 * 1000;
 const BATCH = 500;
-
-/** The date after which an event's personal data must be anonymized (last event day + retentionDays). */
-export function retentionDueAt(lastDay: Date, retentionDays: number) {
-  return new Date(lastDay.getTime() + (retentionDays + 1) * DAY_MS);
-}
 
 /**
  * Deletes stored files nothing refers to any more: left by a crash between writing a file and saving its row, a failed
@@ -80,48 +76,10 @@ export function fileKeys(answers: unknown) {
   return Object.values(answers as Record<string, unknown>).flatMap((value) => readFileAnswers(value).map((file) => file.storageKey));
 }
 
-/** Registrant columns after anonymization: answers, contact details (email, LINE), consent IP, reasons, QR and status link go. */
+/** Registrant columns after an approved deletion request: answers, contact details (email, LINE), consent IP, reasons, QR and status link go. */
 export function anonymizedRegistrantData(now: Date) {
   return {
     answers: {}, displayName: null, email: null, dedupeKey: null, lineUserId: null, lineNotifiedDays: Prisma.DbNull, notifyVia: "EMAIL" as const, consentIp: null, rejectReason: null, qrCode: null,
     statusTokenHash: hashBearerCode(randomBytes(32).toString("base64url")), emailNotifiedHash: null, anonymizedAt: now,
   };
-}
-
-/**
- * PDPA retention: once an event's retention period has passed, strip personal data from its registrants
- * (answers, contact details, consent IP, reasons, QR and status link) and delete their uploads.
- * Statuses, day rows and check-in records stay so anonymous statistics remain available.
- */
-export async function anonymizeExpiredEvents(now = new Date()) {
-  const candidates = await db.event.findMany({
-    where: { anonymizedAt: null, days: { some: {} } },
-    select: { id: true, retentionDays: true, days: { select: { date: true }, orderBy: { date: "desc" }, take: 1 } },
-  });
-  const due = candidates.filter((event) => event.days[0] && retentionDueAt(event.days[0].date, event.retentionDays) <= now);
-  let anonymizedRegistrants = 0;
-  for (const event of due) {
-    let eventCount = 0;
-    for (;;) {
-      const batch = await db.registrant.findMany({ where: { eventId: event.id, anonymizedAt: null }, select: { id: true, answers: true }, take: BATCH });
-      if (!batch.length) break;
-      const files = batch.flatMap((person) => fileKeys(person.answers));
-      // The keys are recorded with the wipe, in one transaction: the answers that held them are gone after it, so a
-      // delete that fails below is still finished by the orphan sweep instead of leaving the files forever.
-      await db.$transaction([
-        recordPending(files),
-        ...batch.map((person) => db.registrant.update({ where: { id: person.id }, data: anonymizedRegistrantData(now) })),
-      ]);
-      await deleteLocalRegistrationFiles(files).catch((error: unknown) => {
-        console.error(`Retention could not delete uploads now (the orphan sweep retries): ${(error as Error).name}`);
-      });
-      eventCount += batch.length;
-    }
-    await db.$transaction([
-      db.event.update({ where: { id: event.id }, data: { anonymizedAt: now } }),
-      db.auditLog.create({ data: { eventId: event.id, actorId: null, action: "RETENTION_ANONYMIZED", target: event.id, metadata: { registrants: eventCount, retentionDays: event.retentionDays } } }),
-    ]);
-    anonymizedRegistrants += eventCount;
-  }
-  return { checkedEvents: candidates.length, anonymizedEvents: due.length, anonymizedRegistrants };
 }

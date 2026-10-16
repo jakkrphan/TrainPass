@@ -76,7 +76,9 @@ export function EventInfoFields({ event, deadlineDate = "", seatModeLocked = fal
 
       {event && showRetention && <section aria-labelledby="retention-heading" className="flex flex-col gap-3 rounded-xl border bg-card p-5">
         <h3 id="retention-heading" className="font-heading text-lg font-bold">การเก็บข้อมูลส่วนบุคคล</h3>
-        <Field><FieldLabel htmlFor="retentionDays">เก็บไว้ (วัน)</FieldLabel><Input id="retentionDays" name="retentionDays" type="number" min={30} max={3650} defaultValue={event.retentionDays} disabled={!!event.anonymizedAt} className="h-10" /><FieldDescription>{event.anonymizedAt ? "ข้อมูลส่วนบุคคลของโครงการนี้ถูกปกปิดแล้ว เหลือเฉพาะสถิติ" : "นับหลังวันจัดสุดท้าย ครบกำหนดแล้วระบบลบข้อมูลที่ระบุตัวตนและไฟล์แนบ เหลือเฉพาะสถิติ"}</FieldDescription></Field>
+        <p className="text-sm leading-relaxed text-muted-foreground">{event.anonymizedAt
+          ? "ข้อมูลส่วนบุคคลของโครงการนี้ถูกปกปิดไปแล้วตามกติกาเดิม เหลือเฉพาะสถานะและสถิติ"
+          : "ข้อมูลที่ผู้ลงทะเบียนกรอกและไฟล์แนบเก็บไว้ถาวร ระบบไม่ลบอัตโนมัติ · ลบได้เฉพาะเมื่อผู้ลงทะเบียนยื่นคำขอลบข้อมูล และผู้จัดอนุมัติ"}</p>
       </section>}
     </div>
   </div>;

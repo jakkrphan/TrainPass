@@ -1,8 +1,8 @@
-// Unit tests for the orphan sweep and the files side of retention: only journaled (PendingFile) keys a day old are
-// looked at, referenced ones are kept, and a failed delete during anonymization is left for the sweep.
+// Unit tests for the orphan file sweep: only journaled (PendingFile) keys a day old are
+// looked at, and referenced ones are kept. (Registration data itself is never deleted by time.)
 // Runs against a throwaway UPLOAD_DIR and an in-memory database, never the real ones.
 import assert from "node:assert/strict";
-import { access, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { access, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -37,7 +37,7 @@ globalThis.prisma = {
   $queryRaw: async () => state.registrants.filter((r) => !r.anonymizedAt).map(({ id, answers }) => ({ id, answers: JSON.stringify(answers) })),
   $transaction: (operations) => Promise.all(operations),
 };
-const { anonymizeExpiredEvents, sweepOrphanFiles } = await import("./retention.ts");
+const { sweepOrphanFiles } = await import("./retention.ts");
 
 const exists = (k) => access(join(folder, k)).then(() => true, () => false);
 async function stored(k, journaledAt) {
@@ -97,38 +97,4 @@ test("a recorded key that is not one of ours is released, never counted again", 
   state.pending.set("not-a-generated-key.pdf", twoDaysAgo);
   assert.equal(await sweepOrphanFiles(now), 0, "no file was deleted");
   assert.equal(state.pending.size, 0);
-});
-
-test("answers holding a key we never generate (e.g. too long for the journal) are anonymized and not journaled", async () => {
-  reset();
-  const odd = `${"x".repeat(80)}.pdf`;
-  state.events = [{ id: "e3", retentionDays: 30, anonymizedAt: null, days: [{ date: new Date(now.getTime() - 40 * DAY) }] }];
-  state.registrants = [{ id: "r3", eventId: "e3", answers: { doc: file(odd) } }];
-  assert.equal((await anonymizeExpiredEvents(now)).anonymizedRegistrants, 1);
-  assert.deepEqual(state.registrants[0].answers, {});
-  assert.equal(state.pending.has(odd), false);
-});
-
-test("a failed delete during anonymization does not stop retention, and the sweep removes the file later", async () => {
-  reset();
-  state.events = [{ id: "e2", retentionDays: 30, anonymizedAt: null, days: [{ date: new Date(now.getTime() - 40 * DAY) }] }];
-  state.registrants = [{ id: "r2", eventId: "e2", answers: { doc: file(key(20)), more: [file(key(21))] } }];
-  await stored(key(20));
-  await mkdir(join(folder, key(21))); // a folder where the file should be, so its unlink fails
-  const logged = [];
-  const original = console.error;
-  console.error = (message) => logged.push(message);
-  try {
-    assert.deepEqual(await anonymizeExpiredEvents(now), { checkedEvents: 1, anonymizedEvents: 1, anonymizedRegistrants: 1 });
-  } finally { console.error = original; }
-  assert.deepEqual(state.registrants[0].answers, {});
-  assert.ok(state.events[0].anonymizedAt, "the event is marked done although a file is left");
-  assert.equal(logged.length, 1);
-  assert.ok(state.pending.has(key(21)), "the stuck file stays journaled");
-
-  await rm(join(folder, key(21)), { recursive: true });
-  await writeFile(join(folder, key(21)), "x"); // whatever blocked the delete is fixed
-  state.pending.set(key(21), twoDaysAgo);
-  assert.equal(await sweepOrphanFiles(now), 1);
-  assert.equal(await exists(key(21)), false);
 });
