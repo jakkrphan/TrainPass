@@ -80,7 +80,7 @@ ${ticketBody}
 ${course}<table ${table}>${dayRows}</table>${reason}
 <table ${table} style="margin-top:20px"><tr><td align="center" style="border-radius:10px;background:${color.text}"><a href="${e(statusUrl)}" style="display:block;padding:14px 16px;${font};font-size:16px;font-weight:bold;color:#ffffff;text-decoration:none">ดูสถานะและรายละเอียด</a></td></tr></table>
 </td></tr></table>
-<p style="max-width:560px;margin:16px auto 0;${font};font-size:12px;line-height:1.6;color:${color.muted};text-align:center">ลิงก์และ QR นี้เป็นของคุณ กรุณาอย่าส่งต่อให้ผู้อื่น<br>โรงพยาบาลราชพิพัฒน์ · ระบบ AttendPass</p>
+<p style="max-width:560px;margin:16px auto 0;${font};font-size:12px;line-height:1.6;color:${color.muted};text-align:center">ลิงก์และ QR นี้เป็นของคุณ กรุณาอย่าส่งต่อให้ผู้อื่น<br>โรงพยาบาลราชพิพัฒน์ · ระบบ TrainPass</p>
 </td></tr></table></body></html>`;
 }
 
@@ -119,7 +119,7 @@ export function buildAnnouncementEmail(person: EmailRecipient, announcement: { s
 ${paragraphs}
 <table ${table} style="margin-top:20px"><tr><td align="center" style="border-radius:10px;background:${color.text}"><a href="${e(statusUrl)}" style="display:block;padding:14px 16px;${font};font-size:16px;font-weight:bold;color:#ffffff;text-decoration:none">ดูสถานะการลงทะเบียน</a></td></tr></table>
 </td></tr></table>
-<p style="max-width:560px;margin:16px auto 0;${font};font-size:12px;line-height:1.6;color:${color.muted};text-align:center">คุณได้รับอีเมลนี้เพราะลงทะเบียนโครงการนี้ไว้<br>โรงพยาบาลราชพิพัฒน์ · ระบบ AttendPass</p>
+<p style="max-width:560px;margin:16px auto 0;${font};font-size:12px;line-height:1.6;color:${color.muted};text-align:center">คุณได้รับอีเมลนี้เพราะลงทะเบียนโครงการนี้ไว้<br>โรงพยาบาลราชพิพัฒน์ · ระบบ TrainPass</p>
 </td></tr></table></body></html>`;
   return {
     subject: `โรงพยาบาลราชพิพัฒน์ — ประกาศ: ${announcement.subject} · ${person.event.title}`.replace(/[\r\n]+/g, " "),

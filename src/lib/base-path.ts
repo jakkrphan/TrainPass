@@ -1,4 +1,4 @@
-/** Sub-path the app is served under (BASE_PATH, e.g. "/attendpass"), "" at the domain root. next.config inlines it at build time. */
+/** Sub-path the app is served under (BASE_PATH, e.g. "/trainpass"), "" at the domain root. next.config inlines it at build time. */
 export const basePath = process.env.BASE_PATH ?? "";
 
 /**

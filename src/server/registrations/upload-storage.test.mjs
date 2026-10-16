@@ -6,7 +6,7 @@ import test from "node:test";
 import { uploadRoot } from "./upload-storage.ts";
 
 test("UPLOAD_DIR is used in production and development", () => {
-  const folder = resolve("/srv/attendpass-uploads");
+  const folder = resolve("/srv/trainpass-uploads");
   assert.equal(uploadRoot({ NODE_ENV: "production", UPLOAD_DIR: folder }), folder);
   assert.equal(uploadRoot({ NODE_ENV: "development", UPLOAD_DIR: folder }), folder);
 });

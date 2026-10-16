@@ -1,4 +1,4 @@
-# AttendPass architecture
+# TrainPass architecture
 
 โครงนี้แบ่งตามขอบเขตการเข้าถึงที่ระบุในสเปก:
 

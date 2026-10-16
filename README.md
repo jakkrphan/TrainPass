@@ -1,4 +1,4 @@
-# AttendPass
+# TrainPass
 
 Current development specification: [ระบบเช็คชื่ออบรม rev.3](docs/ระบบเช็คชื่ออบรม%20rev.3.md). It defines the `per_day` and `whole_course` seat modes. Local seed data for both modes is created by `npm.cmd run db:seed` (200 demo registrants); the existing database is not reseeded automatically during migration.
 

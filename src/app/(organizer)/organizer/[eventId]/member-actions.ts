@@ -10,7 +10,7 @@ import { requireEventAccess } from "@/server/authorization/event";
 import { requiresAdminAudit } from "@/server/authorization/policy";
 import { db } from "@/server/db";
 
-/** A person the owner can add: `account` has an account in AttendPass; `directory` is in AD only (an account is created on add). */
+/** A person the owner can add: `account` has an account in TrainPass; `directory` is in AD only (an account is created on add). */
 export type MemberCandidate = { email: string; name: string; detail: string; source: "account" | "directory"; member: boolean };
 export type MemberSearch = { people: MemberCandidate[]; directory: "on" | "off" | "unavailable" };
 

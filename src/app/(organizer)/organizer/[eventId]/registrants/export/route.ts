@@ -62,7 +62,7 @@ export async function GET(request: Request, context: RouteContext<"/organizer/[e
   }
 
   const workbook = new ExcelJS.Workbook();
-  workbook.creator = "AttendPass";
+  workbook.creator = "TrainPass";
   const addSheet = (name: string, sheetHeader: string[], sheetRows: unknown[][]) => {
     const sheet = workbook.addWorksheet(name, { views: [{ state: "frozen", ySplit: 1 }] });
     sheet.addRow(sheetHeader).font = { bold: true };

@@ -13,7 +13,7 @@
 | `AUTH_SECRET` | เซ็น JWT session ของ Auth.js, HMAC ของ ticket หน้าสมัคร (`form-ticket.ts`) และ key ของการนับ login ผิด (`login-throttle.ts`) | สุ่มอย่างน้อย 32 byte (`openssl rand -base64 32`) · เปลี่ยนค่าแล้วทุกคนถูก logout และฟอร์มสมัครที่เปิดค้างไว้ต้องโหลดใหม่ · สเปกเรียกชื่อเดิมว่า `NEXTAUTH_SECRET` |
 | `AUTH_TRUST_HOST` | ให้ Auth.js เชื่อ header `Host`/`X-Forwarded-*` | `"true"` เมื่ออยู่หลัง reverse proxy ที่ตั้ง header ให้เอง |
 | `APP_BASE_URL` | URL จริงของระบบ เช่น `https://checkin.example.go.th` ใช้สร้างลิงก์สมัคร/QR ของโครงการ ลิงก์เชิญ/ตั้งรหัสผ่านของเจ้าหน้าที่ และเป็นปลายทางของสคริปต์ maintenance | ไม่มี `/` ท้าย · ห้ามตั้งเป็นค่าว่าง `""` (ลิงก์จะไม่มีโดเมน) · ถ้าไม่ตั้ง ลิงก์ใช้ host ของ request (ปลอมได้) และสคริปต์ maintenance ยิงไป `http://localhost:3100` |
-| `UPLOAD_DIR` | โฟลเดอร์เก็บไฟล์แนบและรูปปกบนเซิร์ฟเวอร์ เช่น `/srv/attendpass-uploads` | อยู่นอกโฟลเดอร์แอปและไม่อยู่ใต้ `public/` · ให้ user ที่รันแอปเขียนได้คนเดียว (`chmod 700`) · ต้องรวมในการสำรองข้อมูล · ไม่ตั้ง = production ไม่รับอัปโหลด · **ห้ามใช้โฟลเดอร์เดียวกันกับระบบอื่น** (staging, DB ที่ copy มา) — การลบไฟล์ของระบบหนึ่งจะกระทบอีกระบบ · งาน `maintenance:retention` กวาดไฟล์กำพร้าให้ทุกวัน (ไฟล์ค้างจาก process ล่ม/ลบไม่สำเร็จ) โดยลบเฉพาะไฟล์ที่ระบบนี้บันทึกไว้ในตาราง `PendingFile` และไม่มีข้อมูลอ้างถึงเกิน 1 วัน — ไฟล์อื่นในโฟลเดอร์ไม่ถูกแตะ · ผลลัพธ์ `orphanFilesDeleted` (`null` = กวาดไม่สำเร็จ สคริปต์ maintenance จะจบด้วย exit code 1) |
+| `UPLOAD_DIR` | โฟลเดอร์เก็บไฟล์แนบและรูปปกบนเซิร์ฟเวอร์ เช่น `/srv/trainpass-uploads` | อยู่นอกโฟลเดอร์แอปและไม่อยู่ใต้ `public/` · ให้ user ที่รันแอปเขียนได้คนเดียว (`chmod 700`) · ต้องรวมในการสำรองข้อมูล · ไม่ตั้ง = production ไม่รับอัปโหลด · **ห้ามใช้โฟลเดอร์เดียวกันกับระบบอื่น** (staging, DB ที่ copy มา) — การลบไฟล์ของระบบหนึ่งจะกระทบอีกระบบ · งาน `maintenance:retention` กวาดไฟล์กำพร้าให้ทุกวัน (ไฟล์ค้างจาก process ล่ม/ลบไม่สำเร็จ) โดยลบเฉพาะไฟล์ที่ระบบนี้บันทึกไว้ในตาราง `PendingFile` และไม่มีข้อมูลอ้างถึงเกิน 1 วัน — ไฟล์อื่นในโฟลเดอร์ไม่ถูกแตะ · ผลลัพธ์ `orphanFilesDeleted` (`null` = กวาดไม่สำเร็จ สคริปต์ maintenance จะจบด้วย exit code 1) |
 | `CRON_SECRET` | รหัสของ `/api/jobs/pending-holds` และ `/api/jobs/retention` | สุ่มยาว · ไม่ตั้ง = งานตั้งเวลาตอบ 503 |
 
 ### บริการภายนอก
@@ -40,16 +40,16 @@ SMTP 4xx/connection timeout ลองใหม่สูงสุด 4 ครั�
 
 1. สร้างโฟลเดอร์นอกโฟลเดอร์แอป ให้ user ที่รัน PM2 เป็นเจ้าของ
    ```sh
-   sudo mkdir -p /srv/attendpass-uploads
-   sudo chown <user ที่รัน pm2> /srv/attendpass-uploads
-   sudo chmod 700 /srv/attendpass-uploads
+   sudo mkdir -p /srv/trainpass-uploads
+   sudo chown <user ที่รัน pm2> /srv/trainpass-uploads
+   sudo chmod 700 /srv/trainpass-uploads
    ```
-   (Windows: เช่น `D:\attendpass-uploads` ให้ user ที่รันแอปมีสิทธิ์เขียน)
-2. เพิ่มใน `.env` ข้าง `ecosystem.config.cjs` — ใช้ path เต็ม: `UPLOAD_DIR="/srv/attendpass-uploads"`
+   (Windows: เช่น `D:\trainpass-uploads` ให้ user ที่รันแอปมีสิทธิ์เขียน)
+2. เพิ่มใน `.env` ข้าง `ecosystem.config.cjs` — ใช้ path เต็ม: `UPLOAD_DIR="/srv/trainpass-uploads"`
 3. `pm2 reload ecosystem.config.cjs` — ค่านี้อ่านตอนเริ่มโปรเซส ไม่ต้อง build ใหม่
 4. ทดสอบ: สร้างโครงการแล้วใส่รูปปก
 
-**อัปรูปปกไม่ได้:** ข้อความในหน้าสร้าง/แก้ไขโครงการบอกสาเหตุ (`cover-errors.ts`) — "เซิร์ฟเวอร์ยังไม่พร้อมรับรูปปก" = ยังไม่ได้ตั้ง `UPLOAD_DIR` · "เกิน 3 MB" = ไฟล์ที่ส่งถึงเซิร์ฟเวอร์ใหญ่เกินจริง (หน้าเว็บย่อรูปเป็น 1600×900 ก่อนส่ง จึงไม่ค่อยเกิด) · "รูปปกไม่ถูกต้อง" = ไม่ใช่ JPG/PNG/WebP หรือ `sharp` อ่านรูปไม่ได้ · ดูรายละเอียดด้วย `pm2 logs attendpass` (บรรทัด `Cover upload refused: UPLOAD_DIR is not set` หรือ `Cover image could not be processed:` ตามด้วย error ของ `sharp` — ถ้าทุกรูปขึ้นแบบหลัง ให้ตรวจว่าติดตั้ง `sharp` ตรงกับ OS/CPU ของเซิร์ฟเวอร์ โดยรัน `npm ci` บนเครื่องนั้นแล้ว build ใหม่)
+**อัปรูปปกไม่ได้:** ข้อความในหน้าสร้าง/แก้ไขโครงการบอกสาเหตุ (`cover-errors.ts`) — "เซิร์ฟเวอร์ยังไม่พร้อมรับรูปปก" = ยังไม่ได้ตั้ง `UPLOAD_DIR` · "เกิน 3 MB" = ไฟล์ที่ส่งถึงเซิร์ฟเวอร์ใหญ่เกินจริง (หน้าเว็บย่อรูปเป็น 1600×900 ก่อนส่ง จึงไม่ค่อยเกิด) · "รูปปกไม่ถูกต้อง" = ไม่ใช่ JPG/PNG/WebP หรือ `sharp` อ่านรูปไม่ได้ · ดูรายละเอียดด้วย `pm2 logs trainpass` (บรรทัด `Cover upload refused: UPLOAD_DIR is not set` หรือ `Cover image could not be processed:` ตามด้วย error ของ `sharp` — ถ้าทุกรูปขึ้นแบบหลัง ให้ตรวจว่าติดตั้ง `sharp` ตรงกับ OS/CPU ของเซิร์ฟเวอร์ โดยรัน `npm ci` บนเครื่องนั้นแล้ว build ใหม่)
 
 ### ตัวเลือก
 
@@ -104,9 +104,9 @@ npm run start
 ตัวอย่าง crontab (เครื่องที่มีโค้ดและ `.env` ของแอป — สคริปต์อ่าน `CRON_SECRET` และ `APP_BASE_URL`):
 
 ```cron
-*/15 * * * *  cd /srv/attendpass && npm run -s maintenance:pending-holds
-*/5 * * * *   cd /srv/attendpass && npm run -s maintenance:notifications
-30 2 * * *    cd /srv/attendpass && npm run -s maintenance:retention
+*/15 * * * *  cd /srv/trainpass && npm run -s maintenance:pending-holds
+*/5 * * * *   cd /srv/trainpass && npm run -s maintenance:notifications
+30 2 * * *    cd /srv/trainpass && npm run -s maintenance:retention
 ```
 
 หรือเรียก endpoint ตรงจากตัวตั้งเวลาภายนอก: `curl -fsS -H "Authorization: Bearer $CRON_SECRET" https://…/api/jobs/retention`

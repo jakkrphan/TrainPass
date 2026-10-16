@@ -25,7 +25,7 @@ try {
     update: { ownerId: organizer.id },
     create: {
       slug: "demo-training",
-      title: "อบรมการใช้งาน AttendPass",
+      title: "อบรมการใช้งาน TrainPass",
       description: "กิจกรรมตัวอย่างสำหรับทดสอบระบบในเครื่อง",
       location: "ห้องอบรม A",
       status: "PUBLISHED",
@@ -85,7 +85,7 @@ try {
       email: "demo@example.com",
       dedupeKey: "demo@example.com",
       consentVersion: "v1",
-      answers: { name: "ผู้เข้าร่วมตัวอย่าง", organization: "AttendPass" },
+      answers: { name: "ผู้เข้าร่วมตัวอย่าง", organization: "TrainPass" },
       status: "APPROVED",
       notifyVia: "EMAIL",
       approvedAt: new Date(),

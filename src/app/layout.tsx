@@ -8,8 +8,8 @@ const anuphan = Anuphan({ subsets: ["thai", "latin"], weight: ["500", "600", "70
 
 export const metadata: Metadata = {
   title: {
-    default: "AttendPass",
-    template: "%s | AttendPass",
+    default: "TrainPass",
+    template: "%s | TrainPass",
   },
   description: "จัดการลงทะเบียน อนุมัติผู้เข้าอบรม และเช็คชื่อหน้างานได้ในที่เดียว",
 };
