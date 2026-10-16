@@ -58,12 +58,6 @@ export const featureDefinitions = [
     whenOff: "ผู้สมัครยกเลิกเองไม่ได้ ต้องแจ้งผู้จัด · ที่นั่งจะไม่ถูกคืนจนกว่าผู้จัดจะยกเลิกให้",
   },
   {
-    key: "calendarDownload", group: "registration", defaultEnabled: true,
-    label: "ดาวน์โหลดลงปฏิทิน (.ics)",
-    description: "ปุ่มดาวน์โหลดวันที่เข้าอบรมเป็นไฟล์ปฏิทินในบัตร QR",
-    whenOff: "ซ่อนปุ่มและปิดลิงก์ไฟล์ .ics",
-  },
-  {
     key: "dataDeletionRequest", group: "registration", defaultEnabled: true,
     label: "ขอลบข้อมูลของฉัน (PDPA)",
     description: "ผู้สมัครส่งคำขอลบข้อมูลจากหน้าสถานะ ผู้จัดกดลบ (ปกปิดข้อมูลและยกเลิกการลงทะเบียน) หรือปฏิเสธพร้อมเหตุผล — บันทึก audit ทุกขั้น",

@@ -95,18 +95,17 @@ try {
 
   // Registrant self-service switches.
   let html = await (await fetch(statusUrl)).text();
-  ensure(html.includes("แก้ไขข้อมูลของฉัน") && html.includes("เปลี่ยนวันที่เข้าร่วม") && html.includes("ยกเลิกการเข้าร่วม") && html.includes("/calendar"), "Self-service controls missing while on");
+  ensure(html.includes("แก้ไขข้อมูลของฉัน") && html.includes("เปลี่ยนวันที่เข้าร่วม") && html.includes("ยกเลิกการเข้าร่วม"), "Self-service controls missing while on");
   const cancelForm = formsFrom(html).find((part) => part.includes("ยกเลิกการเข้าร่วม"));
-  for (const key of ["selfEdit", "selfDayChange", "selfCancel", "calendarDownload"]) await toggle(key, false);
+  for (const key of ["selfEdit", "selfDayChange", "selfCancel"]) await toggle(key, false);
   html = await (await fetch(statusUrl)).text();
-  ensure(!html.includes("แก้ไขข้อมูลของฉัน") && !html.includes("เปลี่ยนวันที่เข้าร่วม") && !html.includes("ยกเลิกการเข้าร่วม") && !html.includes("/calendar"), "Self-service controls still shown while off");
+  ensure(!html.includes("แก้ไขข้อมูลของฉัน") && !html.includes("เปลี่ยนวันที่เข้าร่วม") && !html.includes("ยกเลิกการเข้าร่วม"), "Self-service controls still shown while off");
   ensure((await (await fetch(`${statusUrl}/edit`)).text()).includes("ขณะนี้ปิดการแก้ข้อมูลด้วยตนเอง"), "Edit page still editable");
   ensure((await (await fetch(`${statusUrl}/days`)).text()).includes("ขณะนี้ปิดการเปลี่ยนวันด้วยตนเอง"), "Days page still editable");
-  ensure((await fetch(`${statusUrl}/calendar`)).status === 404, "Calendar file still served");
   response = await post(statusUrl, cancelForm, { confirm: "on" });
   ensure(location(response).includes("error=disabled"), `Cancel accepted while off: ${location(response)}`);
   ensure((await db.registrant.findFirstOrThrow({ where: { eventId: event.id } })).status === "APPROVED", "Registrant was cancelled while self-cancel was off");
-  for (const key of ["selfEdit", "selfDayChange", "selfCancel", "calendarDownload"]) await toggle(key, true);
+  for (const key of ["selfEdit", "selfDayChange", "selfCancel"]) await toggle(key, true);
 
   // Organizer switches: export, walk-in, creating events (admins keep creating).
   ensure((await fetch(`${base}/organizer/${event.id}/registrants/export`, { headers: { cookie: adminCookie } })).status === 200, "Export failed while on");
