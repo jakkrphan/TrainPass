@@ -20,7 +20,7 @@ export default async function ImportPage({ params }: PageProps<"/organizer/[even
   // Admins only: one import creates many approved registrants at once and skips the seat checks.
   if (membership.systemRole !== "admin") notFound();
   const days = await db.eventDay.findMany({ where: { eventId }, orderBy: { date: "asc" }, select: { id: true, date: true } });
-  const fields = importableFields(readRegistrationFields(event.fields)).map((field) => ({ key: field.key, label: field.label, type: field.type }));
+  const fields = importableFields(readRegistrationFields(event.fields)).map((field) => ({ key: field.key, label: field.label, type: field.type, options: field.options }));
 
   return <>
     <OrganizerEventHeader event={event} activeTab="registrants" />
