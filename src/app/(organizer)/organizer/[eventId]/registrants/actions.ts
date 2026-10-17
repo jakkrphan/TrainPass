@@ -110,7 +110,11 @@ export async function approveSelected(eventId: string, formData: FormData) {
   const outcome = await db.$transaction(async (tx) => {
     await lockEventDays(tx, eventId);
     const event = await tx.event.findUniqueOrThrow({ where: { id: eventId }, select: { id: true, seatMode: true, maxSeats: true } });
-    const pending = new Set((await tx.registrant.findMany({ where: { eventId, id: { in: ids }, status: "PENDING" }, select: { id: true } })).map((person) => person.id));
+    // Same people as the "รออนุมัติ" tab: pending overall, or approved for one day and still pending for another.
+    const pending = new Set((await tx.registrant.findMany({
+      where: { eventId, id: { in: ids }, status: { notIn: ["CANCELLED", "REJECTED"] }, OR: [{ status: "PENDING" }, { days: { some: { status: "PENDING" } } }] },
+      select: { id: true },
+    })).map((person) => person.id));
     const approved: string[] = [];
     const held: string[] = [];
     const skipped = ids.filter((id) => !pending.has(id));

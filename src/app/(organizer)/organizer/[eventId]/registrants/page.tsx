@@ -87,8 +87,13 @@ export default async function RegistrantsPage({ params, searchParams }: PageProp
   const currentPage = typeof search.page === "string" && /^\d+$/.test(search.page) ? Math.max(1, Math.min(100000, Number(search.page))) : 1;
   const pageSize = 50;
 
+  // "รออนุมัติ" also lists people approved for one day and still pending for another (their overall status reads
+  // APPROVED), so the tab matches the dashboard's to-do count and every pending day can be reached from here.
+  const pendingWhere: Prisma.RegistrantWhereInput = { status: { notIn: ["CANCELLED", "REJECTED"] }, OR: [{ status: "PENDING" }, { days: { some: { status: "PENDING" } } }] };
   const where: Prisma.RegistrantWhereInput = { eventId };
-  if (selectedStatus && !selectedDay) where.status = selectedStatus;
+  const and: Prisma.RegistrantWhereInput[] = [];
+  if (selectedStatus === "PENDING" && !selectedDay) and.push(pendingWhere);
+  else if (selectedStatus && !selectedDay) where.status = selectedStatus;
   if (selectedDay) where.days = { some: { eventDayId: selectedDay, ...(selectedStatus ? { status: selectedStatus } : {}) } };
   if (query) {
     where.OR = [
@@ -103,18 +108,20 @@ export default async function RegistrantsPage({ params, searchParams }: PageProp
       : ["select", "radio", "date"].includes(selectedField.type)
         ? { path: `$.${selectedField.key}`, equals: answerValue }
         : { path: `$.${selectedField.key}`, string_contains: answerValue, mode: "insensitive" as const };
-    where.AND = [{ answers: answerFilter }];
+    and.push({ answers: answerFilter });
   }
+  if (and.length) where.AND = and;
 
-  const [registrants, total, counts] = await Promise.all([
+  const [registrants, total, counts, pendingCount] = await Promise.all([
     db.registrant.findMany({
       where, orderBy: [{ registeredAt: "desc" }, { id: "desc" }], skip: (currentPage - 1) * pageSize, take: pageSize,
       select: { id: true, email: true, displayName: true, answers: true, status: true, registeredAt: true, days: { select: { eventDayId: true, status: true } } },
     }),
     db.registrant.count({ where }),
     db.registrant.groupBy({ by: ["status"], where: { eventId }, _count: true }),
+    db.registrant.count({ where: { eventId, ...pendingWhere } }),
   ]);
-  const countOf = (status: RegistrantStatus) => counts.find((item) => item.status === status)?._count ?? 0;
+  const countOf = (status: RegistrantStatus) => status === "PENDING" ? pendingCount : counts.find((item) => item.status === status)?._count ?? 0;
   const allCount = counts.reduce((sum, item) => sum + item._count, 0);
 
   const filterParams = { q: query || undefined, status: selectedStatus, day: selectedDay, field: selectedField?.key, answer: answerValue || undefined, page: currentPage > 1 ? String(currentPage) : undefined };
