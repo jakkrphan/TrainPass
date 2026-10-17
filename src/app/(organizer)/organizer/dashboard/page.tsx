@@ -1,17 +1,22 @@
 import type { Prisma } from "@prisma/client";
 import type { Metadata } from "next";
-import { LayoutDashboardIcon } from "lucide-react";
+import Link from "next/link";
+import { ClockIcon, LayoutDashboardIcon, UserCheckIcon } from "lucide-react";
 
 import { AutoSearch } from "@/components/auto-search";
 import { Pagination } from "@/components/pagination";
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { chipClass, eventStatusLabel, eventStatusTone } from "@/features/events/status-display";
-import { formatEventDayList } from "@/lib/format";
+import { formatDateTime, formatEventDayList } from "@/lib/format";
 import { pageWindow, readPage } from "@/lib/pagination";
 import { cn } from "@/lib/utils";
+import { manageableEventsWhere } from "@/server/authorization/event-visibility";
 import { requireActiveUser } from "@/server/authorization/session";
 import { db } from "@/server/db";
+
+import { DashboardSchedule } from "./schedule";
+import { DashboardTrend } from "./trend";
 
 export const metadata: Metadata = { title: "แดชบอร์ด" };
 
@@ -28,21 +33,80 @@ function addCount(counts: Counts, status: string, count: number) {
 
 const number = (value: number) => value.toLocaleString("th-TH");
 
+const HOUR = 60 * 60 * 1000;
+const CLOSING_SOON_DAYS = 3;
+const ATTENTION_LIMIT = 8;
+
+/** "3 วัน", "5 ชม.", "ไม่ถึง 1 ชม." — coarse on purpose: the list is a nudge, the registrant page has exact times. */
+function span(ms: number) {
+  const hours = Math.floor(ms / HOUR);
+  if (hours >= 24) return `${number(Math.floor(hours / 24))} วัน`;
+  return hours >= 1 ? `${hours} ชม.` : "ไม่ถึง 1 ชม.";
+}
+
+/**
+ * The two to-do lists, limited to projects this user may manage (admins: all): people still waiting for approval,
+ * and published projects whose registration closes within CLOSING_SOON_DAYS.
+ */
+async function loadAttention(manageable: Prisma.EventWhereInput) {
+  const now = new Date();
+  const [pendingRows, closing] = await Promise.all([
+    db.registrant.groupBy({
+      by: ["eventId"], where: { status: "PENDING", event: { AND: [manageable, { status: { in: ["PUBLISHED", "CLOSED"] } }] } },
+      _count: { _all: true }, _min: { registeredAt: true },
+    }),
+    db.event.findMany({
+      where: { AND: [manageable, { status: "PUBLISHED", registrationDeadline: { gt: now, lte: new Date(now.getTime() + CLOSING_SOON_DAYS * 24 * HOUR) } }] },
+      orderBy: { registrationDeadline: "asc" }, take: ATTENTION_LIMIT, select: { id: true, title: true, registrationDeadline: true },
+    }),
+  ]);
+  const oldest = pendingRows.toSorted((a, b) => (a._min.registeredAt?.getTime() ?? 0) - (b._min.registeredAt?.getTime() ?? 0)).slice(0, ATTENTION_LIMIT);
+  const titles = oldest.length ? await db.event.findMany({ where: { id: { in: oldest.map((row) => row.eventId) } }, select: { id: true, title: true } }) : [];
+  const titleOf = new Map(titles.map((event) => [event.id, event.title]));
+  return {
+    pending: oldest.map((row) => ({
+      id: row.eventId, title: titleOf.get(row.eventId) ?? "", count: row._count._all,
+      waited: row._min.registeredAt ? span(now.getTime() - row._min.registeredAt.getTime()) : null,
+    })),
+    pendingProjects: pendingRows.length,
+    closing: closing.map((event) => ({ id: event.id, title: event.title, deadline: event.registrationDeadline!, left: span(event.registrationDeadline!.getTime() - now.getTime()) })),
+  };
+}
+
+type SeatEvent = { seatMode: string; maxSeats: number | null; days: { id: string; maxSeats: number | null }[] };
+
+/**
+ * Seats held (approved + pending, as registration counts them) against capacity. per_day sums every day's seats, so a
+ * three-day project of 50 a day reads x / 150. null = no limit (a course without maxSeats, or any day without one).
+ */
+function seatUsage(event: SeatEvent, counts: Counts, heldByDay: Map<string, number>) {
+  if (event.seatMode === "whole_course") return event.maxSeats === null ? null : { taken: counts.APPROVED + counts.PENDING, max: event.maxSeats, days: 0, fullDays: 0 };
+  if (!event.days.length || event.days.some((day) => day.maxSeats === null)) return null;
+  return {
+    taken: event.days.reduce((sum, day) => sum + (heldByDay.get(day.id) ?? 0), 0),
+    max: event.days.reduce((sum, day) => sum + day.maxSeats!, 0),
+    days: event.days.length,
+    // A sum can look roomy while one day is already full, so full days are counted separately.
+    fullDays: event.days.filter((day) => (heldByDay.get(day.id) ?? 0) >= day.maxSeats!).length,
+  };
+}
+
 /**
  * Registrant counts for every published or closed project, open to all signed-in staff (not only each project's
  * organizers). Counts only, never registrant details. Drafts are left out: they cannot take registrations yet.
  */
 export default async function DashboardPage({ searchParams }: PageProps<"/organizer/dashboard">) {
-  await requireActiveUser();
+  const user = await requireActiveUser();
   const params = await searchParams;
   const query = typeof params.q === "string" ? params.q.trim().slice(0, 100) : "";
   const allWhere: Prisma.EventWhereInput = { deletedAt: null, status: { in: ["PUBLISHED", "CLOSED"] } };
   const listWhere: Prisma.EventWhereInput = query ? { AND: [allWhere, { title: { contains: query } }] } : allWhere;
 
-  const [eventCount, totalsByStatus, searchTotal] = await Promise.all([
+  const [eventCount, totalsByStatus, searchTotal, attention] = await Promise.all([
     db.event.count({ where: allWhere }),
     db.registrant.groupBy({ by: ["status"], where: { event: allWhere }, _count: { _all: true } }),
     query ? db.event.count({ where: listWhere }) : Promise.resolve(null),
+    loadAttention(manageableEventsWhere(user)),
   ]);
   const listTotal = searchTotal ?? eventCount;
   const totals = emptyCounts();
@@ -56,10 +120,14 @@ export default async function DashboardPage({ searchParams }: PageProps<"/organi
   const events = await db.event.findMany({
     where: listWhere,
     orderBy: [{ createdAt: "desc" }, { id: "desc" }], skip: paging.skip, take: paging.take,
-    select: { id: true, title: true, status: true, location: true, days: { orderBy: { date: "asc" }, select: { date: true } } },
+    select: { id: true, title: true, status: true, location: true, seatMode: true, maxSeats: true, days: { orderBy: { date: "asc" }, select: { id: true, date: true, maxSeats: true } } },
   });
   const eventIds = events.map((event) => event.id);
-  const statusCounts = eventIds.length ? await db.registrant.groupBy({ by: ["eventId", "status"], where: { eventId: { in: eventIds } }, _count: { _all: true } }) : [];
+  const [statusCounts, dayHeld] = eventIds.length ? await Promise.all([
+    db.registrant.groupBy({ by: ["eventId", "status"], where: { eventId: { in: eventIds } }, _count: { _all: true } }),
+    db.registrantEventDay.groupBy({ by: ["eventDayId"], where: { eventDay: { eventId: { in: eventIds } }, status: { in: ["APPROVED", "PENDING"] } }, _count: { _all: true } }),
+  ]) : [[], []];
+  const heldByDay = new Map(dayHeld.map((row) => [row.eventDayId, row._count._all]));
   const countsByEvent = new Map<string, Counts>();
   for (const row of statusCounts) {
     const counts = countsByEvent.get(row.eventId) ?? emptyCounts();
@@ -90,6 +158,35 @@ export default async function DashboardPage({ searchParams }: PageProps<"/organi
         </div>)}
       </section>
 
+      {(attention.pending.length > 0 || attention.closing.length > 0) && <section aria-label="งานที่ต้องจัดการ" className="grid gap-3 lg:grid-cols-2">
+        {attention.pending.length > 0 && <div className="flex flex-col gap-3 rounded-xl border bg-card p-4">
+          <h2 className="flex items-center gap-2 font-heading text-base font-bold"><UserCheckIcon className="size-4 text-primary" aria-hidden="true" />รออนุมัติ{attention.pendingProjects > attention.pending.length && <span className="text-xs font-normal text-muted-foreground">แสดง {attention.pending.length} จาก {number(attention.pendingProjects)} โครงการ</span>}</h2>
+          <ul className="flex flex-col divide-y">
+            {attention.pending.map((item) => <li key={item.id}>
+              <Link href={`/organizer/${item.id}/registrants?status=PENDING`} className="flex items-center justify-between gap-3 py-2.5 hover:underline">
+                <span className="flex min-w-0 flex-col gap-0.5"><span className="truncate text-sm font-semibold">{item.title}</span>{item.waited && <span className="text-xs text-muted-foreground">คนแรกรอมา {item.waited}</span>}</span>
+                <span className="shrink-0 rounded-md bg-amber-100 px-2 py-0.5 text-sm font-bold tabular-nums text-amber-900">{number(item.count)} คน</span>
+              </Link>
+            </li>)}
+          </ul>
+        </div>}
+        {attention.closing.length > 0 && <div className="flex flex-col gap-3 rounded-xl border bg-card p-4">
+          <h2 className="flex items-center gap-2 font-heading text-base font-bold"><ClockIcon className="size-4 text-primary" aria-hidden="true" />ใกล้ปิดรับสมัคร <span className="text-xs font-normal text-muted-foreground">ภายใน {CLOSING_SOON_DAYS} วัน</span></h2>
+          <ul className="flex flex-col divide-y">
+            {attention.closing.map((item) => <li key={item.id}>
+              <Link href={`/organizer/${item.id}?step=1`} className="flex items-center justify-between gap-3 py-2.5 hover:underline">
+                <span className="flex min-w-0 flex-col gap-0.5"><span className="truncate text-sm font-semibold">{item.title}</span><span className="text-xs text-muted-foreground">ปิด {formatDateTime(item.deadline)}</span></span>
+                <span className="shrink-0 text-sm font-semibold tabular-nums text-muted-foreground">เหลือ {item.left}</span>
+              </Link>
+            </li>)}
+          </ul>
+        </div>}
+      </section>}
+
+      <DashboardSchedule events={allWhere} />
+
+      <DashboardTrend events={allWhere} />
+
       <AutoSearch id="dashboard-search" label="ค้นหาชื่อโครงการ" placeholder="ค้นหาชื่อโครงการ" defaultValue={query} />
 
       {events.length === 0 ? (
@@ -107,6 +204,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/organi
               <TableRow>
                 <TableHead className="min-w-64 px-5">โครงการ</TableHead>
                 <TableHead className="min-w-36">วันที่จัด</TableHead>
+                <TableHead className="min-w-36">ที่นั่ง</TableHead>
                 <TableHead className="text-right">ลงทะเบียน</TableHead>
                 <TableHead className="text-right">อนุมัติแล้ว</TableHead>
                 <TableHead className="text-right">รออนุมัติ</TableHead>
@@ -117,6 +215,9 @@ export default async function DashboardPage({ searchParams }: PageProps<"/organi
             <TableBody>
               {events.map((event) => {
                 const counts = countsByEvent.get(event.id) ?? emptyCounts();
+                const seats = seatUsage(event, counts, heldByDay);
+                const used = seats ? Math.min(seats.taken / Math.max(seats.max, 1), 1) : 0;
+                const full = seats !== null && seats.taken >= seats.max;
                 return <TableRow key={event.id}>
                   <TableCell className="px-5 py-3.5 whitespace-normal">
                     <div className="flex flex-col gap-1.5">
@@ -125,6 +226,11 @@ export default async function DashboardPage({ searchParams }: PageProps<"/organi
                     </div>
                   </TableCell>
                   <TableCell className="whitespace-normal text-sm">{event.days.length ? formatEventDayList(event.days.map((day) => day.date)) : <span className="text-muted-foreground">ยังไม่กำหนดวัน</span>}</TableCell>
+                  <TableCell className="text-sm">{seats ? <div className="flex flex-col gap-1">
+                    <span className="flex items-baseline gap-1.5 tabular-nums"><span className="font-semibold">{number(seats.taken)} / {number(seats.max)}</span>{full ? <span className="text-xs font-semibold text-destructive">เต็ม</span> : seats.days > 1 && <span className="text-xs text-muted-foreground">รวม {seats.days} วัน</span>}</span>
+                    {!full && seats.fullDays > 0 && <span className="text-xs font-semibold text-destructive">เต็มแล้ว {seats.fullDays} วัน</span>}
+                    <span className="h-1.5 w-28 overflow-hidden rounded-full bg-muted" role="img" aria-label={`ใช้ที่นั่งแล้ว ${Math.round(used * 100)}%`}><span className={cn("block h-full rounded-full", full ? "bg-destructive" : "bg-primary")} style={{ width: `${used * 100}%` }} /></span>
+                  </div> : <span className="text-muted-foreground">ไม่จำกัด</span>}</TableCell>
                   <TableCell className="text-right font-heading text-base font-bold tabular-nums">{number(counts.total)}</TableCell>
                   <TableCell className="text-right tabular-nums">{number(counts.APPROVED)}</TableCell>
                   <TableCell className="text-right tabular-nums">{number(counts.PENDING)}</TableCell>

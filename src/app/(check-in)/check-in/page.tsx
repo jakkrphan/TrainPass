@@ -12,6 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { formatDayNumber, formatEventDay, formatMonth } from "@/lib/format";
 import { Pagination } from "@/components/pagination";
 import { pageWindow, readPage } from "@/lib/pagination";
+import { bangkokToday } from "@/lib/bangkok-today";
 import { cn } from "@/lib/utils";
 import { requireActiveUser } from "@/server/authorization/session";
 import { db } from "@/server/db";
@@ -30,12 +31,6 @@ const filters = [
 type Filter = (typeof filters)[number]["value"];
 
 const CHECKIN_PAGE_SIZE = 20;
-
-/** Start of today in Bangkok as a UTC instant, and today's calendar key (event days are stored as UTC dates). */
-function bangkokToday() {
-  const key = new Date(Date.now() + 7 * 60 * 60 * 1000).toISOString().slice(0, 10);
-  return { key, start: new Date(`${key}T00:00:00+07:00`) };
-}
 
 export default async function CheckInPage({ searchParams }: PageProps<"/check-in">) {
   const user = await requireActiveUser();
