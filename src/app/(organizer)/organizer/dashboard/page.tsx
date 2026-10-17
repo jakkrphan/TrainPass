@@ -1,4 +1,4 @@
-import type { Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ClockIcon, LayoutDashboardIcon, UserCheckIcon } from "lucide-react";
@@ -8,6 +8,7 @@ import { Pagination } from "@/components/pagination";
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { chipClass, eventStatusLabel, eventStatusTone } from "@/features/events/status-display";
+import { bangkokToday } from "@/lib/bangkok-today";
 import { formatDateTime, formatEventDayList } from "@/lib/format";
 import { pageWindow, readPage } from "@/lib/pagination";
 import { cn } from "@/lib/utils";
@@ -47,26 +48,36 @@ function span(ms: number) {
 /**
  * The two to-do lists, limited to projects this user may manage (admins: all): people still waiting for approval,
  * and published projects whose registration closes within CLOSING_SOON_DAYS.
+ *
+ * Pending counts only projects that still need a decision — published, or closed but with a training day today or
+ * later — so stale requests on finished projects cannot crowd out live ones. A person counts while their overall status
+ * or any of their days is PENDING (per-day projects summarize "approved for one day, pending for another" as APPROVED),
+ * and the wait is measured from the oldest pending day (pendingSince), falling back to the registration time.
  */
 async function loadAttention(manageable: Prisma.EventWhereInput) {
   const now = new Date();
-  const [pendingRows, closing] = await Promise.all([
-    db.registrant.groupBy({
-      by: ["eventId"], where: { status: "PENDING", event: { AND: [manageable, { status: { in: ["PUBLISHED", "CLOSED"] } }] } },
-      _count: { _all: true }, _min: { registeredAt: true },
+  const today = bangkokToday();
+  const [actionable, closing] = await Promise.all([
+    db.event.findMany({
+      where: { AND: [manageable, { OR: [{ status: "PUBLISHED" }, { status: "CLOSED", days: { some: { date: { gte: today.date } } } }] }] },
+      select: { id: true, title: true },
     }),
     db.event.findMany({
       where: { AND: [manageable, { status: "PUBLISHED", registrationDeadline: { gt: now, lte: new Date(now.getTime() + CLOSING_SOON_DAYS * 24 * HOUR) } }] },
       orderBy: { registrationDeadline: "asc" }, take: ATTENTION_LIMIT, select: { id: true, title: true, registrationDeadline: true },
     }),
   ]);
-  const oldest = pendingRows.toSorted((a, b) => (a._min.registeredAt?.getTime() ?? 0) - (b._min.registeredAt?.getTime() ?? 0)).slice(0, ATTENTION_LIMIT);
-  const titles = oldest.length ? await db.event.findMany({ where: { id: { in: oldest.map((row) => row.eventId) } }, select: { id: true, title: true } }) : [];
-  const titleOf = new Map(titles.map((event) => [event.id, event.title]));
+  const pendingRows = actionable.length ? await db.$queryRaw<{ eventId: string; pending: bigint; since: Date }[]>(Prisma.sql`
+    SELECT r.eventId AS eventId, COUNT(DISTINCT r.id) AS pending, MIN(COALESCE(rd.pendingSince, r.registeredAt)) AS since
+    FROM Registrant r LEFT JOIN RegistrantEventDay rd ON rd.registrantId = r.id AND rd.status = 'PENDING'
+    WHERE r.eventId IN (${Prisma.join(actionable.map((event) => event.id))})
+      AND r.status NOT IN ('CANCELLED', 'REJECTED') AND (r.status = 'PENDING' OR rd.id IS NOT NULL)
+    GROUP BY r.eventId
+    ORDER BY since ASC`) : [];
+  const titleOf = new Map(actionable.map((event) => [event.id, event.title]));
   return {
-    pending: oldest.map((row) => ({
-      id: row.eventId, title: titleOf.get(row.eventId) ?? "", count: row._count._all,
-      waited: row._min.registeredAt ? span(now.getTime() - row._min.registeredAt.getTime()) : null,
+    pending: pendingRows.slice(0, ATTENTION_LIMIT).map((row) => ({
+      id: row.eventId, title: titleOf.get(row.eventId) ?? "", count: Number(row.pending), waited: span(now.getTime() - new Date(row.since).getTime()),
     })),
     pendingProjects: pendingRows.length,
     closing: closing.map((event) => ({ id: event.id, title: event.title, deadline: event.registrationDeadline!, left: span(event.registrationDeadline!.getTime() - now.getTime()) })),
@@ -183,9 +194,9 @@ export default async function DashboardPage({ searchParams }: PageProps<"/organi
         </div>}
       </section>}
 
-      <DashboardSchedule events={allWhere} />
+      <DashboardSchedule />
 
-      <DashboardTrend events={allWhere} />
+      <DashboardTrend />
 
       <AutoSearch id="dashboard-search" label="ค้นหาชื่อโครงการ" placeholder="ค้นหาชื่อโครงการ" defaultValue={query} />
 
@@ -216,7 +227,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/organi
               {events.map((event) => {
                 const counts = countsByEvent.get(event.id) ?? emptyCounts();
                 const seats = seatUsage(event, counts, heldByDay);
-                const used = seats ? Math.min(seats.taken / Math.max(seats.max, 1), 1) : 0;
+                const used = !seats ? 0 : seats.max > 0 ? Math.min(seats.taken / seats.max, 1) : 1;
                 const full = seats !== null && seats.taken >= seats.max;
                 return <TableRow key={event.id}>
                   <TableCell className="px-5 py-3.5 whitespace-normal">

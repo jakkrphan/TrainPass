@@ -112,7 +112,7 @@ git diff --name-only HEAD@{1} HEAD   # ดูว่าไฟล์อะไร�
 pm2 status                                                         # trainpass online และตัวเลข ↺ ไม่เพิ่มเรื่อยๆ
 pm2 logs trainpass --lines 30 --nostream
 grep -o '"basePath": *"[^"]*"' .next/required-server-files.json    # ต้องตรงกับ BASE_PATH
-curl -fsS http://127.0.0.1:3001/trainpass/api/health                # {"status":"ok","database":"ok"}
+curl -fsS http://127.0.0.1:3001<BASE_PATH>/api/health               # เช่น /trainpass/api/health (ไม่ได้ตั้ง BASE_PATH = /api/health) → {"status":"ok","database":"ok"}
 ```
 
 **แก้ปัญหาที่เจอบ่อย**
@@ -124,7 +124,7 @@ curl -fsS http://127.0.0.1:3001/trainpass/api/health                # {"status":
 | build ล้ม `Module '"@prisma/client"' has no exported member` | `npx prisma generate` แล้ว build ใหม่ |
 | `migrate deploy` ขึ้น `P3005 The database schema is not empty` | ฐานข้อมูลถูกสร้างโดยไม่มีประวัติ migration — **ห้าม** `migrate reset` / `db push --accept-data-loss` · เทียบก่อนด้วย `npx prisma migrate diff --from-schema-datasource prisma/schema.prisma --to-schema-datamodel prisma/schema.prisma` ถ้า `No difference detected.` จึง `npx prisma migrate resolve --applied <ชื่อ migration>` ทีละตัว |
 | หน้าเว็บไม่มี CSS/รูป | build ใหม่ด้วย `npm run build` (ขั้นก๊อป static อยู่ใน `postbuild`) แล้ว reload |
-| ลิงก์หลุดไปที่ `/login` ไม่มี `/trainpass` | build ตอนไม่มี `BASE_PATH` — ตรวจ `.env` แล้ว build ใหม่ |
+| ลิงก์หลุดไปที่ `/login` ไม่มี sub-path (เช่น `/trainpass`) | build ตอนที่ `.env` ยังไม่มี `BASE_PATH` — ตรวจ `.env` แล้ว build ใหม่ (ถ้าเว็บอยู่ที่ root ของโดเมน ไม่ต้องตั้งค่านี้) |
 | build ล้มกลางทาง | ห้าม reload/restart (build ที่ล้มลบ `.next` เดิมไปแล้ว เปิดใหม่จะไม่ขึ้น) · process ที่ยังรันอยู่ใช้ต่อได้ แก้ error แล้ว `npm run build` ใหม่ |
 
 **Reverse proxy ต้องเขียนทับ `X-Forwarded-For`** (ไม่ใช่ต่อท้ายค่าที่ client ส่งมา) — rate limit ของการสมัครและ login อ่าน IP จากค่าแรกของ header นี้ ถ้า proxy ส่งต่อค่าจาก client บอทจะปลอม IP ใหม่ทุกครั้งและข้าม limit ได้ (nginx: `proxy_set_header X-Forwarded-For $remote_addr;`)

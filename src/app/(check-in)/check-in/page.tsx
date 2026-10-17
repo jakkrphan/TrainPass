@@ -16,6 +16,7 @@ import { bangkokToday } from "@/lib/bangkok-today";
 import { cn } from "@/lib/utils";
 import { requireActiveUser } from "@/server/authorization/session";
 import { db } from "@/server/db";
+import { todayProgress } from "@/server/events/today-progress";
 import { withBasePath } from "@/lib/base-path";
 
 export const metadata: Metadata = { title: "เช็คชื่อหน้างาน" };
@@ -73,15 +74,9 @@ export default async function CheckInPage({ searchParams }: PageProps<"/check-in
   const visible = matching.slice(paging.skip, paging.skip + paging.take);
 
   // Today's progress for events running today: approved for today vs distinct people checked in today.
-  const progress = new Map(await Promise.all(visible.filter((item) => item.todayDay).map(async ({ event, todayDay }) => {
-    const [expected, checked] = await Promise.all([
-      event.seatMode === "whole_course"
-        ? db.registrant.count({ where: { eventId: event.id, status: "APPROVED" } })
-        : db.registrantEventDay.count({ where: { eventDayId: todayDay!.id, status: "APPROVED" } }),
-      db.checkIn.groupBy({ by: ["registrantId"], where: { voidedAt: null, checkedInAt: { gte: today.start }, session: { eventId: event.id, OR: [{ eventDayId: todayDay!.id }, { eventDayId: null }] } } }).then((rows) => rows.length),
-    ]);
-    return [event.id, { expected, checked }] as const;
-  })));
+  const running = visible.flatMap(({ event, todayDay }) => todayDay ? [{ dayId: todayDay.id, eventId: event.id, seatMode: event.seatMode }] : []);
+  const byDay = await todayProgress(running, today.start);
+  const progress = new Map(running.map((day) => [day.eventId, byDay.get(day.dayId)!]));
 
   const roleOf = (event: (typeof events)[number]) => event.ownerId === user.id ? "เจ้าของ"
     : event.organizers[0]?.role === "FULL" ? "ผู้ร่วมจัด" : event.organizers[0]?.role === "CHECKIN_ONLY" ? "เช็คชื่ออย่างเดียว" : user.role === "ADMIN" ? "ผู้ดูแลระบบ" : "ผู้ร่วมจัด";

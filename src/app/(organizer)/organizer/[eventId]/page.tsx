@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { coverErrorMessage, isCoverError } from "@/features/events/cover-errors";
 import { readRegistrationFields, readRegistrationForm, validateRegistrationFields } from "@/features/events/registration-fields";
+import { bangkokDayKey } from "@/lib/bangkok-today";
 import { cn } from "@/lib/utils";
 import { requireEventAccess } from "@/server/authorization/event";
 import { isFeatureEnabled, mayCreateEvents } from "@/server/settings/features";
@@ -137,9 +138,9 @@ export default async function EventPage({ params, searchParams }: PageProps<"/or
   ];
   const stepReady = [!!event.title.trim() && hasFutureDeadline, days.length > 0, hasValidRegistrationFields, hasSessions, event.status !== "DRAFT"];
   const deadlineDate = event.registrationDeadline
-    ? new Date(event.registrationDeadline.getTime() + 7 * 60 * 60 * 1000).toISOString().slice(0, 10)
+    ? bangkokDayKey(event.registrationDeadline)
     : "";
-  const todayInBangkok = new Date(new Date().getTime() + 7 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const todayInBangkok = bangkokDayKey();
 
   return (
     <div className="flex min-h-0 flex-1 flex-col lg:flex-row">

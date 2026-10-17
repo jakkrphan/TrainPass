@@ -1,39 +1,54 @@
-import type { Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { TrendingUpIcon } from "lucide-react";
+import { unstable_cache } from "next/cache";
 
-import { bangkokToday } from "@/lib/bangkok-today";
+import { bangkokDayKey, bangkokToday } from "@/lib/bangkok-today";
 import { formatDeadlineDay } from "@/lib/format";
 import { db } from "@/server/db";
 
 const TREND_DAYS = 30;
 const DAY = 24 * 60 * 60 * 1000;
+/** Same projects as the rest of the dashboard: every published or closed one, whoever is looking. */
+const listed: Prisma.EventWhereInput = { deletedAt: null, status: { in: ["PUBLISHED", "CLOSED"] } };
 
 const number = (value: number) => value.toLocaleString("th-TH");
-const bangkokKey = (instant: Date) => new Date(instant.getTime() + 7 * 60 * 60 * 1000).toISOString().slice(0, 10);
 const dayLabel = (key: string) => formatDeadlineDay(new Date(`${key}T00:00:00+07:00`));
+
+/**
+ * Counted in MySQL so the cost does not grow with the number of registrants: new registrations per Bangkok day (the
+ * +7h shift matches bangkokDayKey; Thailand has no DST) and the show-up rate of finished projects. Not per user, so
+ * cached for a minute, which keeps searching and paging the table below from repeating it.
+ */
+const loadTrend = unstable_cache(async (todayKey: string) => {
+  const todayDate = new Date(`${todayKey}T00:00:00Z`);
+  const since = new Date(new Date(`${todayKey}T00:00:00+07:00`).getTime() - (TREND_DAYS - 1) * DAY);
+  const finished: Prisma.EventWhereInput = { AND: [listed, { days: { some: {}, every: { date: { lt: todayDate } } } }] };
+  const [perDay, approved, attended, finishedCount] = await Promise.all([
+    db.$queryRaw<{ day: string; registered: bigint }[]>(Prisma.sql`
+      SELECT DATE_FORMAT(DATE_ADD(r.registeredAt, INTERVAL 7 HOUR), '%Y-%m-%d') AS day, COUNT(*) AS registered
+      FROM Registrant r JOIN Event e ON e.id = r.eventId
+      WHERE e.deletedAt IS NULL AND e.status IN ('PUBLISHED', 'CLOSED') AND r.registeredAt >= ${since}
+      GROUP BY day`),
+    db.registrant.count({ where: { status: "APPROVED", event: finished } }),
+    db.registrant.count({ where: { status: "APPROVED", event: finished, checkIns: { some: { voidedAt: null } } } }),
+    db.event.count({ where: finished }),
+  ]);
+  const counts = new Map(perDay.map((row) => [row.day, Number(row.registered)]));
+  const series = Array.from({ length: TREND_DAYS }, (_, index) => {
+    const key = bangkokDayKey(new Date(since.getTime() + index * DAY));
+    return { key, count: counts.get(key) ?? 0 };
+  });
+  return { series, approved, attended, finishedCount };
+}, ["dashboard-trend"], { revalidate: 60 });
 
 /**
  * New registrations per Bangkok day over the last TREND_DAYS (single series, so no legend: the heading names it), plus
  * the show-up rate of finished projects — approved people with at least one check-in, over all approved people.
  */
-export async function DashboardTrend({ events }: { events: Prisma.EventWhereInput }) {
-  const today = bangkokToday();
-  const since = new Date(today.start.getTime() - (TREND_DAYS - 1) * DAY);
-  const finished: Prisma.EventWhereInput = { AND: [events, { days: { some: {}, every: { date: { lt: today.date } } } }] };
-  const [registered, approved, attended, finishedCount] = await Promise.all([
-    db.registrant.findMany({ where: { event: events, registeredAt: { gte: since } }, select: { registeredAt: true } }),
-    db.registrant.count({ where: { status: "APPROVED", event: finished } }),
-    db.checkIn.groupBy({ by: ["registrantId"], where: { voidedAt: null, registrant: { status: "APPROVED", event: finished } } }).then((rows) => rows.length),
-    db.event.count({ where: finished }),
-  ]);
-
-  const keys = Array.from({ length: TREND_DAYS }, (_, index) => bangkokKey(new Date(since.getTime() + index * DAY)));
-  const perDay = new Map(keys.map((key) => [key, 0]));
-  for (const { registeredAt } of registered) {
-    const key = bangkokKey(registeredAt);
-    if (perDay.has(key)) perDay.set(key, perDay.get(key)! + 1);
-  }
-  const series = keys.map((key) => ({ key, label: dayLabel(key), count: perDay.get(key)! }));
+export async function DashboardTrend() {
+  const { series: points, approved, attended, finishedCount } = await loadTrend(bangkokToday().key);
+  const series = points.map((point) => ({ ...point, label: dayLabel(point.key) }));
+  const total = series.reduce((sum, point) => sum + point.count, 0);
   const peak = Math.max(1, ...series.map((point) => point.count));
   const rate = approved ? Math.round((attended / approved) * 100) : null;
 
@@ -41,7 +56,7 @@ export async function DashboardTrend({ events }: { events: Prisma.EventWhereInpu
     <div className="flex min-w-0 flex-col gap-3 rounded-xl border bg-card p-4">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="flex items-center gap-2 font-heading text-base font-bold"><TrendingUpIcon className="size-4 text-primary" aria-hidden="true" />ลงทะเบียนใหม่ต่อวัน</h2>
-        <span className="text-xs text-muted-foreground">{TREND_DAYS} วันล่าสุด · รวม <span className="font-semibold text-foreground tabular-nums">{number(registered.length)}</span> คน</span>
+        <span className="text-xs text-muted-foreground">{TREND_DAYS} วันล่าสุด · รวม <span className="font-semibold text-foreground tabular-nums">{number(total)}</span> คน</span>
       </div>
       <div className="flex gap-2">
         <div className="flex h-36 flex-col justify-between py-0.5 text-right text-[11px] tabular-nums text-muted-foreground" aria-hidden="true"><span>{number(peak)}</span><span>0</span></div>

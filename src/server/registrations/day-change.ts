@@ -1,5 +1,6 @@
 import { Prisma, type RegistrantStatus } from "@prisma/client";
 
+import { bangkokDayKey } from "@/lib/bangkok-today";
 import { db } from "@/server/db";
 import { getSeatAvailability, syncRegistrantStatus } from "@/server/registrations/day-status";
 import { lockEventDays, promoteWaitlist } from "@/server/registrations/lifecycle";
@@ -9,7 +10,7 @@ import { statusTokenWhere } from "@/server/registrations/status-token";
 export type DayChangeResult = "saved" | "unchanged" | "invalid" | "closed" | "day-closed" | "full" | "checked-in" | "not-found" | "unavailable";
 
 const active: RegistrantStatus[] = ["PENDING", "APPROVED", "WAITLISTED"];
-export const todayInBangkok = () => new Date(Date.now() + 7 * 60 * 60 * 1000).toISOString().slice(0, 10);
+export const todayInBangkok = () => bangkokDayKey();
 
 /**
  * Per-day events: a registrant may add or drop days from their status link until the deadline.

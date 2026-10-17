@@ -1,49 +1,64 @@
 import type { Prisma } from "@prisma/client";
 import { CalendarDaysIcon } from "lucide-react";
+import { unstable_cache } from "next/cache";
 
 import { bangkokToday } from "@/lib/bangkok-today";
 import { formatEventDayWithWeekday } from "@/lib/format";
 import { db } from "@/server/db";
+import { todayProgress } from "@/server/events/today-progress";
 
 const UPCOMING_DAYS = 7;
 const SCHEDULE_LIMIT = 10;
 const DAY = 24 * 60 * 60 * 1000;
+/** Same projects as the rest of the dashboard: every published or closed one, whoever is looking. */
+const listed: Prisma.EventWhereInput = { deletedAt: null, status: { in: ["PUBLISHED", "CLOSED"] } };
 
 const number = (value: number) => value.toLocaleString("th-TH");
 
 /**
- * Training days from today to UPCOMING_DAYS ahead. Today's rows show distinct people checked in today against the
- * day's approved count, counted the same way as the check-in picker; later rows show the approved count only.
+ * Training days from today to UPCOMING_DAYS ahead, with today's check-in progress (todayProgress, as on the check-in
+ * picker) or, for later days, the approved count. Not per user, so it is cached for a minute: searching or paging the
+ * table below re-renders the page without repeating these queries. Cached values are JSON, hence the ISO date.
  */
-export async function DashboardSchedule({ events }: { events: Prisma.EventWhereInput }) {
-  const today = bangkokToday();
+const loadSchedule = unstable_cache(async (todayKey: string) => {
+  const today = { date: new Date(`${todayKey}T00:00:00Z`), start: new Date(`${todayKey}T00:00:00+07:00`) };
   const days = await db.eventDay.findMany({
-    where: { event: events, date: { gte: today.date, lte: new Date(today.date.getTime() + UPCOMING_DAYS * DAY) } },
+    where: { event: listed, date: { gte: today.date, lte: new Date(today.date.getTime() + UPCOMING_DAYS * DAY) } },
     orderBy: [{ date: "asc" }, { event: { title: "asc" } }], take: SCHEDULE_LIMIT,
     select: { id: true, date: true, event: { select: { id: true, title: true, seatMode: true } } },
   });
-  if (!days.length) return null;
+  const todays = days.filter((day) => day.date.getTime() === today.date.getTime());
+  const later = days.filter((day) => day.date.getTime() !== today.date.getTime());
+  const laterWholeCourse = [...new Set(later.filter((day) => day.event.seatMode === "whole_course").map((day) => day.event.id))];
+  const laterPerDay = later.filter((day) => day.event.seatMode !== "whole_course").map((day) => day.id);
+  const [progress, dayApproved, courseApproved] = await Promise.all([
+    todayProgress(todays.map((day) => ({ dayId: day.id, eventId: day.event.id, seatMode: day.event.seatMode })), today.start),
+    laterPerDay.length ? db.registrantEventDay.groupBy({ by: ["eventDayId"], where: { eventDayId: { in: laterPerDay }, status: "APPROVED" }, _count: { _all: true } }) : [],
+    laterWholeCourse.length ? db.registrant.groupBy({ by: ["eventId"], where: { eventId: { in: laterWholeCourse }, status: "APPROVED" }, _count: { _all: true } }) : [],
+  ]);
+  const approvedByDay = new Map(dayApproved.map((row) => [row.eventDayId, row._count._all]));
+  const approvedByEvent = new Map(courseApproved.map((row) => [row.eventId, row._count._all]));
+  return days.map((day) => {
+    const running = progress.get(day.id);
+    return {
+      id: day.id, date: day.date.toISOString(), title: day.event.title, isToday: !!running,
+      approved: running?.expected ?? (day.event.seatMode === "whole_course" ? approvedByEvent.get(day.event.id) : approvedByDay.get(day.id)) ?? 0,
+      checked: running?.checked ?? null,
+    };
+  });
+}, ["dashboard-schedule"], { revalidate: 60 });
 
-  const rows = await Promise.all(days.map(async (day) => {
-    const isToday = day.date.getTime() === today.date.getTime();
-    const [approved, checked] = await Promise.all([
-      day.event.seatMode === "whole_course"
-        ? db.registrant.count({ where: { eventId: day.event.id, status: "APPROVED" } })
-        : db.registrantEventDay.count({ where: { eventDayId: day.id, status: "APPROVED" } }),
-      isToday
-        ? db.checkIn.groupBy({ by: ["registrantId"], where: { voidedAt: null, checkedInAt: { gte: today.start }, session: { eventId: day.event.id, OR: [{ eventDayId: day.id }, { eventDayId: null }] } } }).then((found) => found.length)
-        : Promise.resolve(null),
-    ]);
-    return { ...day, isToday, approved, checked };
-  }));
+export async function DashboardSchedule() {
+  const rows = await loadSchedule(bangkokToday().key);
+  if (!rows.length) return null;
 
   return <section aria-label="อบรมวันนี้และเร็วๆ นี้" className="flex flex-col gap-3 rounded-xl border bg-card p-4">
     <h2 className="flex items-center gap-2 font-heading text-base font-bold"><CalendarDaysIcon className="size-4 text-primary" aria-hidden="true" />อบรมวันนี้และเร็วๆ นี้ <span className="text-xs font-normal text-muted-foreground">{UPCOMING_DAYS} วันข้างหน้า</span></h2>
     <ul className="flex flex-col divide-y">
       {rows.map((row) => <li key={row.id} className="flex items-center justify-between gap-3 py-2.5">
         <span className="flex min-w-0 flex-col gap-0.5">
-          <span className="truncate text-sm font-semibold">{row.event.title}</span>
-          <span className="text-xs text-muted-foreground">{row.isToday ? <span className="font-semibold text-primary">วันนี้</span> : formatEventDayWithWeekday(row.date)}</span>
+          <span className="truncate text-sm font-semibold">{row.title}</span>
+          <span className="text-xs text-muted-foreground">{row.isToday ? <span className="font-semibold text-primary">วันนี้</span> : formatEventDayWithWeekday(new Date(row.date))}</span>
         </span>
         {row.checked !== null
           ? <span className="flex shrink-0 flex-col items-end gap-1">
