@@ -301,7 +301,7 @@ export function FieldBuilder({ eventId, items: initialItems, editable, answerCou
               {grip}
               <button type="button" onClick={() => select(field.key)} aria-pressed={active} className="flex min-w-0 flex-1 flex-col gap-0.5 text-left outline-none focus-visible:underline">
                 <span className="text-sm font-semibold">{field.label}</span>
-                <span className="flex min-w-0 flex-wrap items-center gap-2"><span className="truncate font-mono text-xs text-muted-foreground">{field.key}</span>{field.showOnCheckin && <span className="inline-flex items-center gap-1 whitespace-nowrap rounded-md bg-accent px-2 py-0.5 text-[11px] font-semibold text-accent-foreground"><EyeIcon className="size-3" aria-hidden="true" />หน้างาน</span>}</span>
+                {field.showOnCheckin && <span className="inline-flex w-fit items-center gap-1 whitespace-nowrap rounded-md bg-accent px-2 py-0.5 text-[11px] font-semibold text-accent-foreground"><EyeIcon className="size-3" aria-hidden="true" />หน้างาน</span>}
                 {field.conditional && <span className="flex items-center gap-1.5 text-xs text-accent-foreground"><ChevronRightIcon className="size-3.5" aria-hidden="true" />แสดงเมื่อ {labelOf(field.conditional.field)} = {conditionValues(field).join(", ")}</span>}
               </button>
               <span className="hidden flex-wrap justify-end gap-1.5 sm:flex">
@@ -361,21 +361,15 @@ export function FieldBuilder({ eventId, items: initialItems, editable, answerCou
           <fieldset disabled={!editable} className="flex flex-col gap-4">
             <Field>
               <FieldLabel htmlFor={`field-label-${selected}`}>ชื่อฟิลด์ (label)</FieldLabel>
-              <Input id={`field-label-${selected}`} name="label" defaultValue={current?.label ?? ""} maxLength={191} placeholder="เช่น ชื่อ-นามสกุล" required />
+              <Input id={`field-label-${selected}`} name="label" defaultValue={current?.label ?? ""} maxLength={191} placeholder="เช่น ชื่อ-นามสกุล" required aria-describedby={current ? `field-label-hint-${selected}` : undefined} />
+              {current && <FieldDescription id={`field-label-hint-${selected}`} className="text-xs">แก้ชื่อฟิลด์ได้ คำตอบที่ผู้สมัครกรอกไว้แล้วไม่หาย</FieldDescription>}
             </Field>
-            <div className="grid grid-cols-2 gap-3">
-              <Field>
-                <FieldLabel htmlFor={`field-type-${selected}`}>ชนิดฟิลด์</FieldLabel>
-                {creating
-                  ? <NativeSelect id={`field-type-${selected}`} name="type" value={newType} onChange={(event) => setNewType(event.target.value as FieldType)}>{(Object.keys(typeLabels) as FieldType[]).map((value) => <option key={value} value={value}>{value} · {typeLabels[value]}</option>)}</NativeSelect>
-                  : <Input id={`field-type-${selected}`} value={`${type} · ${typeLabels[type]}`} readOnly disabled />}
-              </Field>
-              <Field>
-                <FieldLabel htmlFor={`field-key-${selected}`}>key</FieldLabel>
-                <Input id={`field-key-${selected}`} value={current?.key ?? "สร้างอัตโนมัติ"} readOnly disabled aria-describedby={`field-key-hint-${selected}`} className="font-mono text-xs" />
-                <FieldDescription id={`field-key-hint-${selected}`} className="text-xs">คงที่ตลอดอายุโครงการ · แก้ label ได้โดยคำตอบเดิมไม่หาย</FieldDescription>
-              </Field>
-            </div>
+            <Field>
+              <FieldLabel htmlFor={`field-type-${selected}`}>ชนิดฟิลด์</FieldLabel>
+              {creating
+                ? <NativeSelect id={`field-type-${selected}`} name="type" value={newType} onChange={(event) => setNewType(event.target.value as FieldType)}>{(Object.keys(typeLabels) as FieldType[]).map((value) => <option key={value} value={value}>{value} · {typeLabels[value]}</option>)}</NativeSelect>
+                : <Input id={`field-type-${selected}`} value={`${type} · ${typeLabels[type]}`} readOnly disabled />}
+            </Field>
             {typeHints[type] && <FieldDescription className="-mt-2 text-xs text-accent-foreground">{typeHints[type]}</FieldDescription>}
             {!creating && <FieldDescription className="-mt-2 text-xs">ชนิดฟิลด์เปลี่ยนไม่ได้หลังสร้าง ถ้าต้องการชนิดอื่นให้เพิ่มฟิลด์ใหม่</FieldDescription>}
             <Switch id={`field-required-${selected}`} name="required" label="บังคับกรอก" defaultChecked={current?.required ?? false} />
