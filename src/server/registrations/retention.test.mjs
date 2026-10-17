@@ -17,6 +17,8 @@ const key = (n, ext = "pdf") => `${String(n).padStart(8, "0")}-1f5c-4d8a-9c1e-2f
 
 // Only what retention.ts and file-store.ts call. db.ts reuses globalThis.prisma, so nothing connects to MySQL.
 const state = { pending: new Map(), events: [], registrants: [], audit: [] };
+const storageKeysIn = (value) => !value || typeof value !== "object" ? []
+  : Object.entries(value).flatMap(([name, item]) => name === "storageKey" && typeof item === "string" ? [item] : storageKeysIn(item));
 globalThis.prisma = {
   pendingFile: {
     createMany: async ({ data }) => { for (const row of data) if (!state.pending.has(row.key)) state.pending.set(row.key, new Date()); },
@@ -34,7 +36,8 @@ globalThis.prisma = {
   },
   auditLog: { create: async ({ data }) => state.audit.push(data) },
   // The registrants-with-uploads query of the sweep (MySQL does the JSON filtering; here every live registrant comes back).
-  $queryRaw: async () => state.registrants.filter((r) => !r.anonymizedAt).map(({ id, answers }) => ({ id, answers: JSON.stringify(answers) })),
+  // As MySQL's JSON_EXTRACT(answers, '$**.storageKey'): every storageKey at any depth, as a JSON array.
+  $queryRaw: async () => state.registrants.filter((r) => !r.anonymizedAt).map(({ id, answers }) => ({ id, storageKeys: JSON.stringify(storageKeysIn(answers)) })),
   $transaction: (operations) => Promise.all(operations),
 };
 const { sweepOrphanFiles } = await import("./retention.ts");

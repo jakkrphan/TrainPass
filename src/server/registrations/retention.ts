@@ -57,13 +57,18 @@ async function referencedFileKeys() {
     const thumb = coverThumbKey(event.coverImageKey!);
     if (thumb) referenced.add(thumb);
   }
-  // Only registrants whose answers hold an upload come back (MySQL searches the JSON), so most rows never leave the DB.
+  // Only registrants whose answers hold an upload come back (MySQL searches the JSON), and only their storage keys:
+  // the answers themselves (personal data, up to 5,000 characters a field) never leave the database. `$**.storageKey`
+  // takes every storageKey at any depth, a superset of what fileKeys reads, so nothing referenced can be missed.
   for (let cursor = ""; ;) {
-    const batch = await db.$queryRaw<{ id: string; answers: unknown }[]>`
-      SELECT id, answers FROM Registrant
+    const batch = await db.$queryRaw<{ id: string; storageKeys: unknown }[]>`
+      SELECT id, JSON_EXTRACT(answers, '$**.storageKey') AS storageKeys FROM Registrant
       WHERE anonymizedAt IS NULL AND id > ${cursor} AND JSON_SEARCH(answers, 'one', '%', NULL, '$**.storageKey') IS NOT NULL
       ORDER BY id LIMIT ${BATCH}`;
-    for (const person of batch) for (const key of fileKeys(typeof person.answers === "string" ? JSON.parse(person.answers) : person.answers)) referenced.add(key);
+    for (const person of batch) {
+      const keys: unknown = typeof person.storageKeys === "string" ? JSON.parse(person.storageKeys) : person.storageKeys;
+      for (const key of Array.isArray(keys) ? keys : []) if (typeof key === "string") referenced.add(key);
+    }
     if (batch.length < BATCH) break;
     cursor = batch[batch.length - 1].id;
   }

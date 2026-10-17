@@ -12,7 +12,8 @@ import { buildImport, guessTargets, IMPORT_MAX_BYTES, type ImportTarget, parseCs
 
 import type { ImportState } from "./actions";
 
-type FieldSummary = Pick<RegistrationFieldConfig, "key" | "label" | "type">;
+/** Options are needed in the browser too: the preview checks select/radio/checkbox answers as the server will. */
+type FieldSummary = Pick<RegistrationFieldConfig, "key" | "label" | "type" | "options">;
 const shortDay = new Intl.DateTimeFormat("th-TH", { day: "numeric", month: "short", year: "2-digit", timeZone: "UTC" });
 const number = (value: number) => value.toLocaleString("th-TH");
 
@@ -30,12 +31,14 @@ export function ImportForm({ action, eventId, fields, days, seatMode }: {
   seatMode: string;
 }) {
   const [state, formAction] = useActionState(action, null);
-  const [file, setFile] = useState<{ name: string; text: string } | null>(null);
+  const [file, setFile] = useState<{ name: string; text: string; rows: string[][] } | null>(null);
+  // What was sent with the last import: the server's answer belongs to that file and mapping only.
+  const [submitted, setSubmitted] = useState("");
   const [fileError, setFileError] = useState("");
   const [targets, setTargets] = useState<ImportTarget[]>([]);
-  const configs = fields as RegistrationFieldConfig[];
+  const configs = useMemo(() => fields.map((field) => ({ required: false, showOnCheckin: false, sensitive: false, ...field })) as RegistrationFieldConfig[], [fields]);
   const eventDays = useMemo(() => days.map((day) => ({ id: day.id, date: new Date(day.date) })), [days]);
-  const rows = useMemo(() => file ? parseCsv(file.text) : [], [file]);
+  const rows = useMemo(() => file?.rows ?? [], [file]);
   const headers = rows[0] ?? [];
   const built = useMemo(() => rows.length ? buildImport({ rows, targets, fields: configs, days: eventDays, seatMode }) : null, [rows, targets, configs, eventDays, seatMode]);
   const dayLabel = new Map(eventDays.map((day, index) => [day.id, `วันที่ ${index + 1}`]));
@@ -55,9 +58,11 @@ export function ImportForm({ action, eventId, fields, days, seatMode }: {
     ...fields.map((field) => ({ value: `field:${field.key}` as const, label: `ฟิลด์: ${field.label}` })),
   ];
   // The file's own problems first; the server's (e.g. a ticket ID already in the system) once the file itself is clean.
-  const problems = built?.problems.length ? built.problems : state && !state.ok ? state.problems : [];
+  // A server answer for an earlier file or mapping is dropped as soon as either changes, instead of lingering on screen.
+  const current = file ? `${file.name}\n${file.text.length}\n${JSON.stringify(targets)}` : "";
+  const problems = built?.problems.length ? built.problems : state && !state.ok && submitted === current ? state.problems : [];
 
-  return <form action={formAction} className="flex flex-col gap-6">
+  return <form action={formAction} onSubmit={() => setSubmitted(current)} className="flex flex-col gap-6">
     <section className="flex flex-col gap-3 rounded-xl border bg-card p-5">
       <h3 className="font-semibold">1. เลือกไฟล์</h3>
       <p className="text-sm text-muted-foreground">ใน Google Sheets: ไฟล์ → ดาวน์โหลด → ค่าที่คั่นด้วยจุลภาค (.csv) · แถวแรกต้องเป็นหัวคอลัมน์</p>
@@ -69,8 +74,9 @@ export function ImportForm({ action, eventId, fields, days, seatMode }: {
           if (!chosen) return;
           if (chosen.size > IMPORT_MAX_BYTES) { setFile(null); setFileError("ไฟล์ใหญ่เกิน 2 MB"); return; }
           const text = await chosen.text();
+          // Parsed once here; the preview and the column table reuse these rows.
           const parsed = parseCsv(text);
-          setFile({ name: chosen.name, text });
+          setFile({ name: chosen.name, text, rows: parsed });
           setTargets(guessTargets(parsed[0] ?? [], configs));
         }} />
       </label>
