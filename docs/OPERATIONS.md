@@ -68,17 +68,64 @@ SMTP 4xx/connection timeout ลองใหม่สูงสุด 4 ครั�
 | `CHECKIN_ADMIN_NAME`, `CHECKIN_ADMIN_EMAIL`, `CHECKIN_ADMIN_PASSWORD` | `npm run admin:create` สร้าง admin คนแรก (รหัสผ่าน ≥ 12 ตัว) |
 | `BASE_URL`, `CHROME_PATH`, `CHECK_EMAIL`, `CHECK_PASSWORD` | `npm run test:responsive` |
 
-## ขั้นตอนขึ้นระบบ
+## ขั้นตอนขึ้นระบบ (ครั้งแรก)
+
+รันบนเซิร์ฟเวอร์ที่โฟลเดอร์ของแอป (เช่น `/root/TrainPass`) หลังสร้าง `.env` แล้ว:
 
 ```sh
 npm ci
+npx prisma generate
 npx prisma migrate deploy   # ใช้ DATABASE_URL
-npm run build
+npm run build               # next build → ก๊อป public/ และ .next/static เข้า standalone (postbuild)
 npm run admin:create        # ครั้งแรกเท่านั้น
-npm run start
+pm2 start ecosystem.config.cjs
+pm2 save
+pm2 startup                 # ครั้งเดียว: ให้ PM2 เปิดเองตอนเครื่องรีบูต (ทำตามคำสั่งที่มันพิมพ์ออกมา)
 ```
 
-ห้ามรัน `npm run db:seed` บน production (สร้างบัญชีทดสอบที่ใช้รหัสผ่านร่วมกัน)
+ห้ามรัน `npm run db:seed` บน production (สร้างบัญชีทดสอบที่ใช้รหัสผ่านร่วมกัน) และไม่ควรรัน `npm run dev` บนเซิร์ฟเวอร์ (ทิ้งไฟล์ใน `.next/dev` ที่ทำให้ build รอบหน้าล้ม)
+
+## อัปเดตหลังแก้โค้ด
+
+```sh
+cd /root/TrainPass
+git pull
+git diff --name-only HEAD@{1} HEAD   # ดูว่าไฟล์อะไรเปลี่ยน แล้วเลือกคำสั่งตามตารางด้านล่าง
+```
+
+| สิ่งที่เปลี่ยน | คำสั่ง (ตามลำดับ) |
+| --- | --- |
+| โค้ดทั่วไป (`src/`, `public/`, `next.config.ts`) | `npm run build` → `pm2 reload ecosystem.config.cjs` |
+| `package-lock.json` (เพิ่ม/อัปเกรด package) | `npm ci` → `npx prisma generate` → `npm run build` → `pm2 reload ecosystem.config.cjs` |
+| `prisma/migrations/…` (เปลี่ยนโครงสร้างฐานข้อมูล) | `npx prisma migrate deploy` → `npm run build` → `pm2 reload ecosystem.config.cjs` |
+| `ecosystem.config.cjs` (ชื่อ process, cron, env ในไฟล์) | `pm2 delete ecosystem.config.cjs` → `pm2 start ecosystem.config.cjs` → `pm2 save` |
+| `.env` ค่าที่ใช้ตอน build (`BASE_PATH`) | `npm run build` → `pm2 reload ecosystem.config.cjs` |
+| `.env` ค่าอื่น (รหัสผ่าน, SMTP, LINE, `CRON_SECRET`, `UPLOAD_DIR` ฯลฯ) | `pm2 reload ecosystem.config.cjs` (ไม่ต้อง build) |
+
+เปลี่ยนหลายอย่างพร้อมกันให้รวมคำสั่งตามลำดับ `npm ci` → `prisma migrate deploy` → `npm run build` → `pm2 reload` · ไม่แน่ใจให้รันครบทั้ง 4 ขั้น ไม่เสียหาย แค่ช้ากว่า
+
+ไม่ต้อง `pm2 stop` ก่อน build — แอปเดิมยังให้บริการระหว่าง build (บางหน้าอาจโหลดไม่ขึ้นชั่วคราวจนกว่าจะ reload) · ถ้าไม่มีคนใช้งานหรือ RAM ไม่พอ ให้ `pm2 stop ecosystem.config.cjs` ก่อน แล้วจบด้วย `pm2 delete` + `pm2 start` + `pm2 save`
+
+**ตรวจหลังอัปเดต**
+
+```sh
+pm2 status                                                         # trainpass online และตัวเลข ↺ ไม่เพิ่มเรื่อยๆ
+pm2 logs trainpass --lines 30 --nostream
+grep -o '"basePath": *"[^"]*"' .next/required-server-files.json    # ต้องตรงกับ BASE_PATH
+curl -fsS http://127.0.0.1:3001/trainpass/api/health                # {"status":"ok","database":"ok"}
+```
+
+**แก้ปัญหาที่เจอบ่อย**
+
+| อาการ | แก้ |
+| --- | --- |
+| `git pull` ไม่ผ่านเพราะมีไฟล์ถูกแก้บนเซิร์ฟเวอร์ | `git status` ดูไฟล์ → `git stash` แล้ว pull ใหม่ (`.env` ไม่อยู่ใน git จึงไม่ถูกทับ) |
+| build ล้ม `Cannot find module '…/route.js'` ใน `.next/dev/types` | `rm -rf .next` แล้ว `npm run build` ใหม่ |
+| build ล้ม `Module '"@prisma/client"' has no exported member` | `npx prisma generate` แล้ว build ใหม่ |
+| `migrate deploy` ขึ้น `P3005 The database schema is not empty` | ฐานข้อมูลถูกสร้างโดยไม่มีประวัติ migration — **ห้าม** `migrate reset` / `db push --accept-data-loss` · เทียบก่อนด้วย `npx prisma migrate diff --from-schema-datasource prisma/schema.prisma --to-schema-datamodel prisma/schema.prisma` ถ้า `No difference detected.` จึง `npx prisma migrate resolve --applied <ชื่อ migration>` ทีละตัว |
+| หน้าเว็บไม่มี CSS/รูป | build ใหม่ด้วย `npm run build` (ขั้นก๊อป static อยู่ใน `postbuild`) แล้ว reload |
+| ลิงก์หลุดไปที่ `/login` ไม่มี `/trainpass` | build ตอนไม่มี `BASE_PATH` — ตรวจ `.env` แล้ว build ใหม่ |
+| build ล้มกลางทาง | ห้าม reload/restart (build ที่ล้มลบ `.next` เดิมไปแล้ว เปิดใหม่จะไม่ขึ้น) · process ที่ยังรันอยู่ใช้ต่อได้ แก้ error แล้ว `npm run build` ใหม่ |
 
 **Reverse proxy ต้องเขียนทับ `X-Forwarded-For`** (ไม่ใช่ต่อท้ายค่าที่ client ส่งมา) — rate limit ของการสมัครและ login อ่าน IP จากค่าแรกของ header นี้ ถ้า proxy ส่งต่อค่าจาก client บอทจะปลอม IP ใหม่ทุกครั้งและข้าม limit ได้ (nginx: `proxy_set_header X-Forwarded-For $remote_addr;`)
 
@@ -101,7 +148,9 @@ npm run start
 | กวาดไฟล์กำพร้า | `/api/jobs/retention` | `npm run maintenance:retention` | วันละครั้ง | ลบไฟล์ที่ไม่มีข้อมูลอ้างถึงแล้ว (ดู `UPLOAD_DIR`) · **ไม่ลบหรือปกปิดข้อมูลที่ลงทะเบียน** — ข้อมูลเก็บถาวรตั้งแต่ 16 ต.ค. 2026 (ชื่อ endpoint คงเดิมเพื่อไม่ให้ cron เดิมเสีย) |
 | ส่งแจ้งเตือนที่ค้าง (LINE + อีเมล) | `/api/jobs/notifications` | `npm run maintenance:notifications` | ทุก ~5 นาที | เก็บคิวหลังเซิร์ฟเวอร์รีสตาร์ตและ retry · ครั้งละไม่เกิน 25 รายการต่อช่องทาง; LINE ก่อนเพื่อให้อีเมล fallback ส่งได้ในรอบเดียวกัน |
 
-ตัวอย่าง crontab (เครื่องที่มีโค้ดและ `.env` ของแอป — สคริปต์อ่าน `CRON_SECRET` และ `APP_BASE_URL`):
+บนเซิร์ฟเวอร์ PM2 ทั้งสามงานตั้งเวลาไว้แล้วใน `ecosystem.config.cjs` (`trainpass-pending-holds`, `trainpass-notifications`, `trainpass-retention`) — ไม่ต้องใส่ crontab ซ้ำ
+
+ตัวอย่าง crontab สำหรับเครื่องที่ไม่ได้ใช้ PM2 (เครื่องที่มีโค้ดและ `.env` ของแอป — สคริปต์อ่าน `CRON_SECRET` และ `APP_BASE_URL`):
 
 ```cron
 */15 * * * *  cd /srv/trainpass && npm run -s maintenance:pending-holds
